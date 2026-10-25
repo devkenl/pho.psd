@@ -10,6 +10,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write   # only used to publish failure logs to a ci-logs/* branch
+
 jobs:
   build:
     name: Unit tests + debug APK
@@ -24,19 +27,31 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Install Android SDK platform 37 and build-tools
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install SDK platform 37 and build-tools
+        shell: bash
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37" "build-tools;36.0.0" "platform-tools"
+          set -o pipefail
+          mkdir -p ci-logs
+          { yes | sdkmanager --licenses > /dev/null || true
+            sdkmanager "platforms;android-37" "build-tools;36.0.0" "platform-tools"; } 2>&1 | tee ci-logs/01-sdk.log
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
       - name: Core unit tests
-        run: ./gradlew :core:engine:test :core:editor:test --stacktrace
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew :core:engine:test :core:editor:test --stacktrace 2>&1 | tee ci-logs/02-core-tests.log
 
       - name: Assemble debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew :app:assembleDebug --stacktrace 2>&1 | tee ci-logs/03-assemble.log
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
@@ -54,3 +69,19 @@ jobs:
             core/*/build/reports/tests/
             core/*/build/test-results/
           if-no-files-found: ignore
+
+      # Build logs are also published as a git branch on failure, so they can be read
+      # from environments that cannot download Actions log archives.
+      - name: Publish failure logs to ci-logs branch
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p ci-logs
+          cp -r core/*/build/test-results ci-logs/ 2>/dev/null || true
+          cd ci-logs
+          git init -q
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          git commit -q -m "CI logs for run ${GITHUB_RUN_ID} (${GITHUB_SHA})"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/ci-logs/${GITHUB_RUN_ID}
