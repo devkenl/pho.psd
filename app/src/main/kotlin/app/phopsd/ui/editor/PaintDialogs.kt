@@ -56,16 +56,15 @@ internal fun ImageSizeDialog(width: Int, height: Int, c: EditorController) {
     var h by remember { mutableStateOf(height.toString()) }
     var pct by remember { mutableStateOf("100") }
     val ratio = height.toDouble() / width
-    val wv = w.toIntOrNull()
-    val hv = h.toIntOrNull()
-    val valid = wv != null && hv != null && wv in 1..NewDocumentSpec.MAX_EDGE && hv in 1..NewDocumentSpec.MAX_EDGE
+    val target = validSize(w, h)
+    val valid = target != null
     PhoDialog(
         title = "Image Size",
         onDismiss = c::dismissDialog,
         width = 440.dp,
         actions = {
             PhoButton("Cancel", c::dismissDialog)
-            PhoButton("Apply", { if (valid && wv != null && hv != null) c.tools.imageSize(wv, hv) }, primary = true, enabled = valid)
+            PhoButton("Apply", { target?.let { c.tools.imageSize(it.first, it.second) } }, primary = true, enabled = valid)
         },
     ) {
         LabeledRow("Width") {
@@ -104,16 +103,15 @@ internal fun CanvasSizeDialog(width: Int, height: Int, c: EditorController) {
     var w by remember { mutableStateOf(width.toString()) }
     var h by remember { mutableStateOf(height.toString()) }
     var anchor by remember { mutableStateOf(4) }
-    val wv = w.toIntOrNull()
-    val hv = h.toIntOrNull()
-    val valid = wv != null && hv != null && wv in 1..NewDocumentSpec.MAX_EDGE && hv in 1..NewDocumentSpec.MAX_EDGE
+    val target = validSize(w, h)
+    val valid = target != null
     PhoDialog(
         title = "Canvas Size",
         onDismiss = c::dismissDialog,
         width = 460.dp,
         actions = {
             PhoButton("Cancel", c::dismissDialog)
-            PhoButton("Apply", { if (valid && wv != null && hv != null) c.tools.canvasSize(wv, hv, (anchor % 3) / 2.0, (anchor / 3) / 2.0) }, primary = true, enabled = valid)
+            PhoButton("Apply", { target?.let { c.tools.canvasSize(it.first, it.second, (anchor % 3) / 2.0, (anchor / 3) / 2.0) } }, primary = true, enabled = valid)
         },
     ) {
         LabeledRow("Width") { PhoTextField(w, { w = it.filter(Char::isDigit).take(5) }, Modifier.fillMaxWidth(), numeric = true, suffix = "px") }
@@ -139,6 +137,13 @@ internal fun CanvasSizeDialog(width: Int, height: Int, c: EditorController) {
         Spacer(Modifier.height(8.dp))
         Text("Layers keep all their pixels; anything outside the new canvas is hidden, not deleted.", style = PhoType.Caption)
     }
+}
+
+/** Parsed width × height when both are whole numbers within the editor's limits. */
+private fun validSize(w: String, h: String): Pair<Int, Int>? {
+    val wv = w.toIntOrNull() ?: return null
+    val hv = h.toIntOrNull() ?: return null
+    return if (wv in 1..NewDocumentSpec.MAX_EDGE && hv in 1..NewDocumentSpec.MAX_EDGE) wv to hv else null
 }
 
 private fun anchorName(i: Int): String =
