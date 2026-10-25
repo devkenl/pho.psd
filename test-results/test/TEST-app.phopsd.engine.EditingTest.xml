@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.phopsd.engine.EditingTest" tests="14" skipped="0" failures="0" errors="0" timestamp="2026-10-25T13:18:00.447Z" hostname="runnervmtai0g" time="0.102">
+  <properties/>
+  <testcase name="historyCoalescesSliderDrags" classname="app.phopsd.engine.EditingTest" time="0.06"/>
+  <testcase name="historyUndoRedoAndBranching" classname="app.phopsd.engine.EditingTest" time="0.002"/>
+  <testcase name="duplicateSharesRasterAndGetsUniqueName" classname="app.phopsd.engine.EditingTest" time="0.013"/>
+  <testcase name="deleteRules" classname="app.phopsd.engine.EditingTest" time="0.002"/>
+  <testcase name="propertyEdits" classname="app.phopsd.engine.EditingTest" time="0.007"/>
+  <testcase name="specValidation" classname="app.phopsd.engine.EditingTest" time="0.0"/>
+  <testcase name="rasterStoreReleasesUnreferencedRasters" classname="app.phopsd.engine.EditingTest" time="0.001"/>
+  <testcase name="lockedLayerCannotBeTransformed" classname="app.phopsd.engine.EditingTest" time="0.0"/>
+  <testcase name="placedLargeImageIsFitNonDestructively" classname="app.phopsd.engine.EditingTest" time="0.001"/>
+  <testcase name="reorder" classname="app.phopsd.engine.EditingTest" time="0.005"/>
+  <testcase name="replaceCurrentDoesNotCreateUndoStep" classname="app.phopsd.engine.EditingTest" time="0.002"/>
+  <testcase name="newDocumentHasBackgroundLayerWithoutPixelMemory" classname="app.phopsd.engine.EditingTest" time="0.0"/>
+  <testcase name="addLayerGoesAboveActiveAndBecomesActive" classname="app.phopsd.engine.EditingTest" time="0.001"/>
+  <testcase name="historyRespectsLimitAndTracksRasters" classname="app.phopsd.engine.EditingTest" time="0.005"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

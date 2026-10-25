@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.phopsd.editor.PinchSnapTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-25T13:18:03.690Z" hostname="runnervmtai0g" time="0.005">
+  <properties/>
+  <testcase name="otherToolsAlwaysPinchTheView" classname="app.phopsd.editor.PinchSnapTest" time="0.001"/>
+  <testcase name="snapStepIsConfigurableAndCanBeDisabled" classname="app.phopsd.editor.PinchSnapTest" time="0.001"/>
+  <testcase name="viewRotationSnapsTo45AndCanBreakFree" classname="app.phopsd.editor.PinchSnapTest" time="0.0"/>
+  <testcase name="pinchZoomKeepsCentroidFixed" classname="app.phopsd.editor.PinchSnapTest" time="0.001"/>
+  <testcase name="moveToolCanTransformTheLayerWithSnapAsOneUndoStep" classname="app.phopsd.editor.PinchSnapTest" time="0.001"/>
+  <testcase name="snapIsAbsoluteEvenFromAnUnsnappedStart" classname="app.phopsd.editor.PinchSnapTest" time="0.0"/>
+  <testcase name="lockedLayerFallsBackToViewPinch" classname="app.phopsd.editor.PinchSnapTest" time="0.001"/>
+  <testcase name="smallTwistNeverRotatesTheView" classname="app.phopsd.editor.PinchSnapTest" time="0.0"/>
+  <testcase name="layerPinchFollowsFingersWhilePanning" classname="app.phopsd.editor.PinchSnapTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

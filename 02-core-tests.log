@@ -1,0 +1,28 @@
+Starting a Gradle Daemon (subsequent builds will be faster)
+> Task :core:engine:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:editor:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:editor:processResources NO-SOURCE
+> Task :core:editor:processTestResources NO-SOURCE
+> Task :core:engine:compileKotlin FROM-CACHE
+> Task :core:engine:compileJava NO-SOURCE
+> Task :core:engine:processResources NO-SOURCE
+> Task :core:engine:classes UP-TO-DATE
+> Task :core:engine:jar
+> Task :core:engine:compileTestKotlin FROM-CACHE
+> Task :core:engine:compileTestJava NO-SOURCE
+> Task :core:engine:processTestResources NO-SOURCE
+> Task :core:engine:testClasses UP-TO-DATE
+> Task :core:engine:test FROM-CACHE
+> Task :core:editor:compileKotlin FROM-CACHE
+> Task :core:editor:compileJava NO-SOURCE
+> Task :core:editor:classes UP-TO-DATE
+> Task :core:editor:jar
+> Task :core:editor:compileTestKotlin FROM-CACHE
+> Task :core:editor:compileTestJava NO-SOURCE
+> Task :core:editor:testClasses UP-TO-DATE
+> Task :core:editor:test FROM-CACHE
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_2-1792934956237.json
+
+BUILD SUCCESSFUL in 11s
+8 actionable tasks: 2 executed, 6 from cache
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.6.0/userguide/configuration_cache_enabling.html

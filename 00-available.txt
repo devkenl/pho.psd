@@ -1,0 +1,39 @@
+  build-tools;36.0.0                                                              | 36.0.0            | Android SDK Build-Tools 36                                                      
+  build-tools;36.0.0                 | 36.0.0        | Android SDK Build-Tools 36       | build-tools/36.0.0                
+  build-tools;36.0.0-rc1                                                          | 36.0.0 rc1        | Android SDK Build-Tools 36-rc1                                                  
+  build-tools;36.0.0-rc3                                                          | 36.0.0 rc3        | Android SDK Build-Tools 36-rc3                                                  
+  build-tools;36.0.0-rc4                                                          | 36.0.0 rc4        | Android SDK Build-Tools 36-rc4                                                  
+  build-tools;36.0.0-rc5                                                          | 36.0.0 rc5        | Android SDK Build-Tools 36-rc5                                                  
+  build-tools;36.1.0                                                              | 36.1.0            | Android SDK Build-Tools 36.1                                                    
+  build-tools;36.1.0                 | 36.1.0        | Android SDK Build-Tools 36.1     | build-tools/36.1.0                
+  build-tools;36.1.0-rc1                                                          | 36.1.0 rc1        | Android SDK Build-Tools 36.1-rc1                                                
+  build-tools;37.0.0                                                              | 37.0.0            | Android SDK Build-Tools 37                                                      
+  build-tools;37.0.0                 | 37.0.0        | Android SDK Build-Tools 37       | build-tools/37.0.0                
+  build-tools;37.0.0-rc1                                                          | 37.0.0 rc1        | Android SDK Build-Tools 37-rc1                                                  
+  build-tools;37.0.0-rc2                                                          | 37.0.0 rc2        | Android SDK Build-Tools 37-rc2                                                  
+  platforms;android-35                                                            | 2                 | Android SDK Platform 35                                                         
+  platforms;android-35               | 2             | Android SDK Platform 35          | platforms/android-35              
+  platforms;android-35-ext14                                                      | 1                 | Android SDK Platform 35-ext14                                                   
+  platforms;android-35-ext14         | 1             | Android SDK Platform 35-ext14    | platforms/android-35-ext14        
+  platforms;android-35-ext15                                                      | 1                 | Android SDK Platform 35-ext15                                                   
+  platforms;android-35-ext15         | 1             | Android SDK Platform 35-ext15    | platforms/android-35-ext15        
+  platforms;android-36                                                            | 2                 | Android SDK Platform 36                                                         
+  platforms;android-36               | 2             | Android SDK Platform 36          | platforms/android-36              
+  platforms;android-36-ext18                                                      | 1                 | Android SDK Platform 36-ext18                                                   
+  platforms;android-36-ext18         | 1             | Android SDK Platform 36-ext18    | platforms/android-36-ext18        
+  platforms;android-36-ext19                                                      | 1                 | Android SDK Platform 36-ext19                                                   
+  platforms;android-36-ext19         | 1             | Android SDK Platform 36-ext19    | platforms/android-36-ext19        
+  platforms;android-36.1                                                          | 1                 | Android SDK Platform 36.1                                                       
+  platforms;android-36.1             | 1             | Android SDK Platform 36.1        | platforms/android-36.1            
+  platforms;android-37.0                                                          | 2                 | Android SDK Platform 37.0                                                       
+  platforms;android-37.0             | 2             | Android SDK Platform 37.0        | platforms/android-37.0            
+  platforms;android-37.1                                                          | 1                 | Android SDK Platform 37.1                                                       
+  platforms;android-37.1             | 1             | Android SDK Platform 37.1        | platforms/android-37.1            
+  platforms;android-37.2                                                          | 1                 | Android SDK Platform 37.2                                                       
+  platforms;android-37.2             | 1             | Android SDK Platform 37.2        | platforms/android-37.2            
+  platforms;android-37.2-beta1                                                    | 1                 | Android SDK Platform 37.2-beta1                                                 
+  platforms;android-37.2-beta1       | 1             | Android SDK Platform 37.2-beta1  | platforms/android-37.2-beta1      
+  platforms;android-37.2-beta2                                                    | 2                 | Android SDK Platform 37.2-beta2                                                 
+  platforms;android-37.2-beta2       | 2             | Android SDK Platform 37.2-beta2  | platforms/android-37.2-beta2      
+  platforms;android-37.2-beta3                                                    | 3                 | Android SDK Platform 37.2-beta3                                                 
+  platforms;android-37.2-beta3       | 3             | Android SDK Platform 37.2-beta3  | platforms/android-37.2-beta3      

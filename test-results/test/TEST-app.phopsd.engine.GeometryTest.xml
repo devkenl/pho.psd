@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.phopsd.engine.GeometryTest" tests="15" skipped="0" failures="0" errors="0" timestamp="2026-10-25T13:18:00.554Z" hostname="runnervmtai0g" time="0.012">
+  <properties/>
+  <testcase name="documentToLayerIsInverse" classname="app.phopsd.engine.GeometryTest" time="0.001"/>
+  <testcase name="viewportScreenDocumentRoundTripWithRotation" classname="app.phopsd.engine.GeometryTest" time="0.005"/>
+  <testcase name="visibleRectIsClippedToDocument" classname="app.phopsd.engine.GeometryTest" time="0.001"/>
+  <testcase name="singularAffineHasNoInverse" classname="app.phopsd.engine.GeometryTest" time="0.0"/>
+  <testcase name="matrixValuesMatchAndroidLayout" classname="app.phopsd.engine.GeometryTest" time="0.0"/>
+  <testcase name="rotationIsClockwiseOnYDownScreen" classname="app.phopsd.engine.GeometryTest" time="0.0"/>
+  <testcase name="affineCompositionAppliesLeftToRight" classname="app.phopsd.engine.GeometryTest" time="0.0"/>
+  <testcase name="layerTransformMapsCornersAroundCentre" classname="app.phopsd.engine.GeometryTest" time="0.001"/>
+  <testcase name="affineInverseRoundTrips" classname="app.phopsd.engine.GeometryTest" time="0.0"/>
+  <testcase name="panMovesContentWithFinger" classname="app.phopsd.engine.GeometryTest" time="0.0"/>
+  <testcase name="zoomAtKeepsFocusPointFixed" classname="app.phopsd.engine.GeometryTest" time="0.0"/>
+  <testcase name="zoomIsClamped" classname="app.phopsd.engine.GeometryTest" time="0.001"/>
+  <testcase name="rotateAtKeepsFocusFixed" classname="app.phopsd.engine.GeometryTest" time="0.0"/>
+  <testcase name="fitToViewFitsAndCentres" classname="app.phopsd.engine.GeometryTest" time="0.001"/>
+  <testcase name="zoomStopsStepMonotonically" classname="app.phopsd.engine.GeometryTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

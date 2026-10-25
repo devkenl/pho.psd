@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.phopsd.engine.PaintingTest" tests="31" skipped="0" failures="0" errors="0" timestamp="2026-10-25T13:18:00.591Z" hostname="runnervmtai0g" time="0.608">
+  <properties/>
+  <testcase name="acceptanceMaskCombinesTwoPhotosNonDestructively" classname="app.phopsd.engine.PaintingTest" time="0.062"/>
+  <testcase name="flipCanvasAndLayer" classname="app.phopsd.engine.PaintingTest" time="0.007"/>
+  <testcase name="imageSizeScalesProportionally" classname="app.phopsd.engine.PaintingTest" time="0.005"/>
+  <testcase name="cropAndCanvasSizeAreNonDestructive" classname="app.phopsd.engine.PaintingTest" time="0.001"/>
+  <testcase name="strokeOpacityIsACapNotCumulative" classname="app.phopsd.engine.PaintingTest" time="0.015"/>
+  <testcase name="maskSamplingMatchesAcrossMipLevelsAndLiveMasks" classname="app.phopsd.engine.PaintingTest" time="0.005"/>
+  <testcase name="deriveSharesTilesAndClonesOnlyOnWrite" classname="app.phopsd.engine.PaintingTest" time="0.006"/>
+  <testcase name="incrementalMipsEqualFullRebuild" classname="app.phopsd.engine.PaintingTest" time="0.007"/>
+  <testcase name="ellipseAreaMatchesGeometry" classname="app.phopsd.engine.PaintingTest" time="0.011"/>
+  <testcase name="brushSizeIsInDocumentPixelsOnScaledLayers" classname="app.phopsd.engine.PaintingTest" time="0.002"/>
+  <testcase name="pressureScalesSize" classname="app.phopsd.engine.PaintingTest" time="0.001"/>
+  <testcase name="lowFlowBuildsUpWithOverlap" classname="app.phopsd.engine.PaintingTest" time="0.001"/>
+  <testcase name="eraserRemovesPixels" classname="app.phopsd.engine.PaintingTest" time="0.001"/>
+  <testcase name="masksRoundTripThroughProjectFormatV2" classname="app.phopsd.engine.PaintingTest" time="0.121"/>
+  <testcase name="clearFillAndExtractHonourSelection" classname="app.phopsd.engine.PaintingTest" time="0.003"/>
+  <testcase name="softBrushFallsOffAndIsDeterministic" classname="app.phopsd.engine.PaintingTest" time="0.0"/>
+  <testcase name="cornerScaleKeepsOppositeCornerFixed" classname="app.phopsd.engine.PaintingTest" time="0.001"/>
+  <testcase name="mergeMatchesCompositeIncludingMasks" classname="app.phopsd.engine.PaintingTest" time="0.006"/>
+  <testcase name="hardBrushPaintsOpaqueColourAndLeavesOriginalIntact" classname="app.phopsd.engine.PaintingTest" time="0.0"/>
+  <testcase name="contentKeyIgnoresSelection" classname="app.phopsd.engine.PaintingTest" time="0.001"/>
+  <testcase name="rectangleSelectionHasExactAndAntialiasedCoverage" classname="app.phopsd.engine.PaintingTest" time="0.001"/>
+  <testcase name="rotateCanvasMapsPixelsExactly" classname="app.phopsd.engine.PaintingTest" time="0.002"/>
+  <testcase name="selectionClipsTheStroke" classname="app.phopsd.engine.PaintingTest" time="0.002"/>
+  <testcase name="lassoPolygonAndCombineOps" classname="app.phopsd.engine.PaintingTest" time="0.023"/>
+  <testcase name="hitTestRespectsMasks" classname="app.phopsd.engine.PaintingTest" time="0.001"/>
+  <testcase name="maskFromSelectionInvertAndApply" classname="app.phopsd.engine.PaintingTest" time="0.008"/>
+  <testcase name="rotatedLayerSurvivesCanvasRotationAndFlip" classname="app.phopsd.engine.PaintingTest" time="0.001"/>
+  <testcase name="proportionalAndCentredScale" classname="app.phopsd.engine.PaintingTest" time="0.0"/>
+  <testcase name="fullCanvasSelectionCostsAlmostNoMemory" classname="app.phopsd.engine.PaintingTest" time="0.307"/>
+  <testcase name="rotateHandleSnapsAndHitTestFindsHandles" classname="app.phopsd.engine.PaintingTest" time="0.001"/>
+  <testcase name="cropBoxKeepsAspect" classname="app.phopsd.engine.PaintingTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.phopsd.editor.CanvasToolsTest" tests="22" skipped="0" failures="0" errors="0" timestamp="2026-10-25T13:18:03.181Z" hostname="runnervmtai0g" time="0.24">
+  <properties/>
+  <testcase name="fillAndClearUseColoursAndSelection" classname="app.phopsd.editor.CanvasToolsTest" time="0.071"/>
+  <testcase name="copyPasteCutAndLayerVia" classname="app.phopsd.editor.CanvasToolsTest" time="0.007"/>
+  <testcase name="cropCommandUsesSelectionBounds" classname="app.phopsd.editor.CanvasToolsTest" time="0.003"/>
+  <testcase name="mergeDownAndFlattenMatchCompositeAndUndo" classname="app.phopsd.editor.CanvasToolsTest" time="0.019"/>
+  <testcase name="brushIsClippedToSelection" classname="app.phopsd.editor.CanvasToolsTest" time="0.008"/>
+  <testcase name="transformHandlesScaleAndRotateWithSnap" classname="app.phopsd.editor.CanvasToolsTest" time="0.005"/>
+  <testcase name="canvasRotateFlipAndSizeDialogs" classname="app.phopsd.editor.CanvasToolsTest" time="0.004"/>
+  <testcase name="polygonalLassoClosesOnFirstPoint" classname="app.phopsd.editor.CanvasToolsTest" time="0.004"/>
+  <testcase name="maskCommandsAddInvertDisableApplyDelete" classname="app.phopsd.editor.CanvasToolsTest" time="0.01"/>
+  <testcase name="stylusTurnsOffFingerPainting" classname="app.phopsd.editor.CanvasToolsTest" time="0.008"/>
+  <testcase name="marqueeOpsClickDeselectAndSelectionIsNotDirty" classname="app.phopsd.editor.CanvasToolsTest" time="0.019"/>
+  <testcase name="brushStrokeIsOneUndoStepAndUndoRestoresPixels" classname="app.phopsd.editor.CanvasToolsTest" time="0.004"/>
+  <testcase name="brushKeysAdjustSettings" classname="app.phopsd.editor.CanvasToolsTest" time="0.001"/>
+  <testcase name="cropToolCommitsAndViewportFollows" classname="app.phopsd.editor.CanvasToolsTest" time="0.003"/>
+  <testcase name="acceptanceMaskCompositeAndUndoEverything" classname="app.phopsd.editor.CanvasToolsTest" time="0.009"/>
+  <testcase name="maskFromSelectionRevealsOnlySelection" classname="app.phopsd.editor.CanvasToolsTest" time="0.005"/>
+  <testcase name="lockedAndHiddenLayersRefusePainting" classname="app.phopsd.editor.CanvasToolsTest" time="0.001"/>
+  <testcase name="eraserAndStylusEraserTipRemovePixels" classname="app.phopsd.editor.CanvasToolsTest" time="0.004"/>
+  <testcase name="freehandLassoThinsPoints" classname="app.phopsd.editor.CanvasToolsTest" time="0.002"/>
+  <testcase name="historyIsTrimmedToThePixelBudget" classname="app.phopsd.editor.CanvasToolsTest" time="0.04"/>
+  <testcase name="eyedropperSamplesComposite" classname="app.phopsd.editor.CanvasToolsTest" time="0.003"/>
+  <testcase name="liveStrokeIsVisibleBeforeCommitAndReportsDirtyRegions" classname="app.phopsd.editor.CanvasToolsTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

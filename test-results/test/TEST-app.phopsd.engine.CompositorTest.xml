@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.phopsd.engine.CompositorTest" tests="17" skipped="0" failures="0" errors="0" timestamp="2026-10-25T13:18:00.222Z" hostname="runnervmtai0g" time="0.216">
+  <properties/>
+  <testcase name="nonSeparableModesPreserveTheRightComponents" classname="app.phopsd.engine.CompositorTest" time="0.008"/>
+  <testcase name="blendModeOverTransparentBackdropActsLikeNormal" classname="app.phopsd.engine.CompositorTest" time="0.059"/>
+  <testcase name="knownBlendValues" classname="app.phopsd.engine.CompositorTest" time="0.0"/>
+  <testcase name="hitTestFindsTopmostOpaqueLayer" classname="app.phopsd.engine.CompositorTest" time="0.007"/>
+  <testcase name="hiddenAndZeroOpacityLayersAreSkipped" classname="app.phopsd.engine.CompositorTest" time="0.002"/>
+  <testcase name="stackingOrderIsBottomToTop" classname="app.phopsd.engine.CompositorTest" time="0.002"/>
+  <testcase name="separableBlendModesMatchFormulas" classname="app.phopsd.engine.CompositorTest" time="0.038"/>
+  <testcase name="thumbnailsAndChannels" classname="app.phopsd.engine.CompositorTest" time="0.019"/>
+  <testcase name="identityRenderIsExactAcrossTileSeams" classname="app.phopsd.engine.CompositorTest" time="0.03"/>
+  <testcase name="integerOffsetLayerIsExactAndTransparentElsewhere" classname="app.phopsd.engine.CompositorTest" time="0.001"/>
+  <testcase name="scaledLayerSamplesOriginalPixels" classname="app.phopsd.engine.CompositorTest" time="0.001"/>
+  <testcase name="translucentOverTransparentStaysTranslucent" classname="app.phopsd.engine.CompositorTest" time="0.001"/>
+  <testcase name="bandedRenderingMatchesSinglePass" classname="app.phopsd.engine.CompositorTest" time="0.007"/>
+  <testcase name="cancellationStopsRender" classname="app.phopsd.engine.CompositorTest" time="0.002"/>
+  <testcase name="multiplyWithPartialAlphaFollowsW3cFormula" classname="app.phopsd.engine.CompositorTest" time="0.002"/>
+  <testcase name="normalSourceOverWithAlphaAndOpacity" classname="app.phopsd.engine.CompositorTest" time="0.001"/>
+  <testcase name="downscaledPreviewUsesMipsAndStaysInRange" classname="app.phopsd.engine.CompositorTest" time="0.021"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

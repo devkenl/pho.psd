@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.phopsd.engine.RasterTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-10-25T13:18:01.469Z" hostname="runnervmtai0g" time="0.032">
+  <properties/>
+  <testcase name="premultiplyAndBackPreservesOpaqueAndRoundsCorrectly" classname="app.phopsd.engine.RasterTest" time="0.001"/>
+  <testcase name="solidRasterCostsNoMemory" classname="app.phopsd.engine.RasterTest" time="0.0"/>
+  <testcase name="frozenRasterRejectsWrites" classname="app.phopsd.engine.RasterTest" time="0.001"/>
+  <testcase name="rasterBuilderAssemblesBands" classname="app.phopsd.engine.RasterTest" time="0.0"/>
+  <testcase name="mipChainStopsAtMinimumEdgeAndHandlesOddSizes" classname="app.phopsd.engine.RasterTest" time="0.003"/>
+  <testcase name="mulDiv255MatchesExactRounding" classname="app.phopsd.engine.RasterTest" time="0.02"/>
+  <testcase name="mipLevelsHalveAndAverageInPremultipliedSpace" classname="app.phopsd.engine.RasterTest" time="0.001"/>
+  <testcase name="writeAndReadAcrossTileBoundaries" classname="app.phopsd.engine.RasterTest" time="0.001"/>
+  <testcase name="importBudgetScalesDownOnlyWhenNeeded" classname="app.phopsd.engine.RasterTest" time="0.001"/>
+  <testcase name="transparentRowsAllocateNoTiles" classname="app.phopsd.engine.RasterTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.phopsd.editor.EditorControllerTest" tests="18" skipped="0" failures="0" errors="0" timestamp="2026-10-25T13:18:03.425Z" hostname="runnervmtai0g" time="0.172">
+  <properties/>
+  <testcase name="numericEntryIsClampedAndApplied" classname="app.phopsd.editor.EditorControllerTest" time="0.005"/>
+  <testcase name="moveDragIsOneUndoStepAndUsesViewportMapping" classname="app.phopsd.editor.EditorControllerTest" time="0.001"/>
+  <testcase name="unavailableToolExplainsItself" classname="app.phopsd.editor.EditorControllerTest" time="0.0"/>
+  <testcase name="newLayerUndoRedo" classname="app.phopsd.editor.EditorControllerTest" time="0.001"/>
+  <testcase name="viewCommands" classname="app.phopsd.editor.EditorControllerTest" time="0.0"/>
+  <testcase name="renameValidation" classname="app.phopsd.editor.EditorControllerTest" time="0.0"/>
+  <testcase name="lockedLayerRefusesMoveAndDelete" classname="app.phopsd.editor.EditorControllerTest" time="0.0"/>
+  <testcase name="plannedCommandsAreNeverEnabled" classname="app.phopsd.editor.EditorControllerTest" time="0.001"/>
+  <testcase name="everyImplementedCommandIsHandled" classname="app.phopsd.editor.EditorControllerTest" time="0.035"/>
+  <testcase name="closeWithUnsavedChangesAsksFirst" classname="app.phopsd.editor.EditorControllerTest" time="0.001"/>
+  <testcase name="historyJumpAndRasterRelease" classname="app.phopsd.editor.EditorControllerTest" time="0.0"/>
+  <testcase name="homeStateBlocksDocumentCommands" classname="app.phopsd.editor.EditorControllerTest" time="0.0"/>
+  <testcase name="openImageCreatesDocumentAtNativeSizeAndFitsView" classname="app.phopsd.editor.EditorControllerTest" time="0.087"/>
+  <testcase name="windowTogglesAndResetWorkspace" classname="app.phopsd.editor.EditorControllerTest" time="0.001"/>
+  <testcase name="autoSelectPicksLayerUnderPointer" classname="app.phopsd.editor.EditorControllerTest" time="0.002"/>
+  <testcase name="opacitySliderCoalesces" classname="app.phopsd.editor.EditorControllerTest" time="0.0"/>
+  <testcase name="placeImageAddsFittedLayerAboveActive" classname="app.phopsd.editor.EditorControllerTest" time="0.029"/>
+  <testcase name="downsampledImportWarns" classname="app.phopsd.editor.EditorControllerTest" time="0.005"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

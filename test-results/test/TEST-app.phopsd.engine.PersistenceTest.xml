@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.phopsd.engine.PersistenceTest" tests="19" skipped="0" failures="0" errors="0" timestamp="2026-10-25T13:18:01.205Z" hostname="runnervmtai0g" time="0.26">
+  <properties/>
+  <testcase name="rasterCodecIsLosslessIncludingEdgeTilesAndFill" classname="app.phopsd.engine.PersistenceTest" time="0.007"/>
+  <testcase name="exportBandsMatchSinglePassAndAreStraightAlpha" classname="app.phopsd.engine.PersistenceTest" time="0.015"/>
+  <testcase name="jsonRoundTripsValuesAndEscapes" classname="app.phopsd.engine.PersistenceTest" time="0.001"/>
+  <testcase name="missingPixelDataIsDetected" classname="app.phopsd.engine.PersistenceTest" time="0.017"/>
+  <testcase name="emptyProjectLayerListIsRejected" classname="app.phopsd.engine.PersistenceTest" time="0.014"/>
+  <testcase name="rasterCodecRejectsDamage" classname="app.phopsd.engine.PersistenceTest" time="0.001"/>
+  <testcase name="predictorCompressesSmoothImages" classname="app.phopsd.engine.PersistenceTest" time="0.015"/>
+  <testcase name="truncatedAndForeignFilesAreRejected" classname="app.phopsd.engine.PersistenceTest" time="0.037"/>
+  <testcase name="unknownLayerTypeIsRefusedRatherThanDropped" classname="app.phopsd.engine.PersistenceTest" time="0.017"/>
+  <testcase name="corruptedPixelDataIsDetected" classname="app.phopsd.engine.PersistenceTest" time="0.02"/>
+  <testcase name="verifyAcceptsGoodFilesWithoutDecodingPixels" classname="app.phopsd.engine.PersistenceTest" time="0.013"/>
+  <testcase name="manifestRecordsHashesAndMetadata" classname="app.phopsd.engine.PersistenceTest" time="0.007"/>
+  <testcase name="newerFormatIsRefusedWithAClearMessage" classname="app.phopsd.engine.PersistenceTest" time="0.012"/>
+  <testcase name="projectRoundTripPreservesDocumentExactly" classname="app.phopsd.engine.PersistenceTest" time="0.027"/>
+  <testcase name="reopenedProjectRendersPixelIdentically" classname="app.phopsd.engine.PersistenceTest" time="0.012"/>
+  <testcase name="resavingALoadedProjectIsStable" classname="app.phopsd.engine.PersistenceTest" time="0.017"/>
+  <testcase name="unknownBlendModeFallsBackWithWarningAndUnknownEntriesAreIgnored" classname="app.phopsd.engine.PersistenceTest" time="0.015"/>
+  <testcase name="exportOverWhiteIsOpaqueAndScaleReducesSize" classname="app.phopsd.engine.PersistenceTest" time="0.005"/>
+  <testcase name="jsonRejectsMalformedInput" classname="app.phopsd.engine.PersistenceTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

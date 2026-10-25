@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.phopsd.editor.PersistenceFlowTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-25T13:18:03.599Z" hostname="runnervmtai0g" time="0.089">
+  <properties/>
+  <testcase name="saveThenCloseClosesOnlyAfterSuccess" classname="app.phopsd.editor.PersistenceFlowTest" time="0.002"/>
+  <testcase name="saveSnapshotSurvivesRasterRelease" classname="app.phopsd.editor.PersistenceFlowTest" time="0.022"/>
+  <testcase name="openProjectAsksBeforeDiscarding" classname="app.phopsd.editor.PersistenceFlowTest" time="0.053"/>
+  <testcase name="saveWithoutProjectAsksForLocationThenMarksClean" classname="app.phopsd.editor.PersistenceFlowTest" time="0.002"/>
+  <testcase name="loadProjectOpensCleanAndRecoveryOpensDirty" classname="app.phopsd.editor.PersistenceFlowTest" time="0.006"/>
+  <testcase name="editsDuringSaveKeepDocumentDirty" classname="app.phopsd.editor.PersistenceFlowTest" time="0.0"/>
+  <testcase name="exportDialogFlow" classname="app.phopsd.editor.PersistenceFlowTest" time="0.002"/>
+  <testcase name="fileNamesAreSanitized" classname="app.phopsd.editor.PersistenceFlowTest" time="0.001"/>
+  <testcase name="selectingLayersDoesNotDirty" classname="app.phopsd.editor.PersistenceFlowTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
