@@ -7,6 +7,10 @@ import app.phopsd.engine.geometry.Viewport
 import app.phopsd.engine.model.Document
 import app.phopsd.engine.model.LayerId
 import app.phopsd.engine.model.RasterLayer
+import app.phopsd.engine.model.SelectionOp
+import app.phopsd.engine.paint.BrushSettings
+import app.phopsd.engine.render.MaskDisplay
+import app.phopsd.engine.geometry.CropBox
 
 enum class Screen { Home, Editor }
 
@@ -126,6 +130,11 @@ sealed interface EditorDialog {
     data class NumericEntry(val target: NumericTarget, val current: Double) : EditorDialog
     data class Export(val settings: ExportSettings) : EditorDialog
     data object Recents : EditorDialog
+    data class ImageSize(val width: Int, val height: Int) : EditorDialog
+    data class CanvasSize(val width: Int, val height: Int) : EditorDialog
+    data class Fill(val hasSelection: Boolean) : EditorDialog
+    data class ConfirmFlatten(val hiddenLayers: Int) : EditorDialog
+    data class ColorPicker(val slot: ColorSlot, val current: Int) : EditorDialog
 }
 
 /** A transform being dragged on canvas; committed to history as one step on release. */
@@ -181,9 +190,45 @@ data class EditorState(
     val rotationSnap: AngleSnap = AngleSnap(stepDegrees = 45.0, thresholdDegrees = AngleSnap.thresholdFor(45.0)),
     val twoFingerTarget: TwoFingerTarget = TwoFingerTarget.View,
     val rotationHud: RotationHud? = null,
+    // ---- M4: painting, masks, selections, crop, transform
+    val colors: ColorPair = ColorPair(),
+    val brush: BrushSettings = BrushSettings(),
+    val eraser: BrushSettings = BrushSettings(),
+    /** Brush/Eraser target on the active layer (the Mask tool always targets the mask). */
+    val paintTarget: PaintTarget = PaintTarget.Pixels,
+    val maskView: MaskView? = null,
+    val selectionOp: SelectionOp = SelectionOp.Replace,
+    val selectionDraft: SelectionDraft? = null,
+    val crop: CropSession? = null,
+    val cropAspect: CropBox.Aspect = CropBox.Aspect.Free,
+    /** Free transform: corner handles keep the aspect ratio (Shift inverts). */
+    val keepProportions: Boolean = true,
+    /** Fingers paint with brush tools. Turned off automatically once a stylus is used. */
+    val fingerPainting: Boolean = true,
+    val stylusSeen: Boolean = false,
+    /** A brush stroke is in progress. */
+    val stroking: Boolean = false,
 ) {
     /** Document as displayed, including an in-progress drag. */
     val document: Document? get() = history?.current?.let { d -> live?.applyTo(d) ?: d }
 
     val effectiveTool: Tool get() = if (spacePanning) Tool.Hand else tool
+
+    /** Mask display for the compositor (only when the active layer has a mask). */
+    val maskDisplay: MaskDisplay?
+        get() {
+            val mode = maskView ?: return null
+            val l = document?.activeLayer as? RasterLayer ?: return null
+            if (l.mask == null) return null
+            return MaskDisplay(l.id, if (mode == MaskView.Alone) MaskDisplay.Mode.Alone else MaskDisplay.Mode.Overlay)
+        }
+
+    /** Whether brush strokes currently go to the active layer's mask. */
+    val paintsMask: Boolean
+        get() = tool == Tool.Mask || (paintTarget == PaintTarget.Mask && (document?.activeLayer as? RasterLayer)?.mask != null)
+
+    val hasSelection: Boolean get() = document?.selection != null
+
+    /** Settings of the brush-like tool in use. */
+    val activeBrush: BrushSettings get() = if (tool == Tool.Eraser) eraser else brush
 }

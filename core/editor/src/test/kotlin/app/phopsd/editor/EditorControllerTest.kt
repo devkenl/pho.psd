@@ -37,8 +37,8 @@ class EditorControllerTest {
             assertFalse("$id must stay disabled", c.availability(id).isEnabled)
         }
         // Dispatching a planned command explains instead of acting.
-        c.dispatch(CommandId.AddMask)
-        assertTrue(c.state.value.notice!!.text.contains("M4"))
+        c.dispatch(CommandId.NewGroup)
+        assertTrue(c.state.value.notice!!.text.contains("M6"))
     }
 
     @Test
@@ -189,9 +189,9 @@ class EditorControllerTest {
     @Test
     fun unavailableToolExplainsItself() {
         newDoc()
-        c.selectTool(Tool.Brush)
+        c.selectTool(Tool.Healing)
         assertEquals(Tool.Move, c.state.value.tool)
-        assertTrue(c.state.value.notice!!.text.contains("M4"))
+        assertTrue(c.state.value.notice!!.text.contains("M6"))
         c.selectTool(Tool.Hand)
         assertEquals(Tool.Hand, c.state.value.tool)
         c.setSpacePanning(true)

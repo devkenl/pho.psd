@@ -66,6 +66,13 @@ data class History(
     /** Breaks coalescing so the next push always creates a new entry. */
     fun sealed(): History = if (coalesceKey == null) this else copy(coalesceKey = null)
 
+    /**
+     * Forgets the oldest state (memory-budget trimming). Never drops the current state;
+     * returns this unchanged when the current state is already the oldest.
+     */
+    fun dropOldest(): History =
+        if (index == 0) this else copy(entries = entries.drop(1), index = index - 1)
+
     /** Every raster referenced by any reachable state; everything else may be released. */
     fun referencedRasters(): Set<RasterId> = entries.flatMapTo(HashSet()) { it.document.rasterIds() }
 

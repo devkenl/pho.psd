@@ -25,12 +25,9 @@ sealed interface Availability {
 
 /** Shared "not built yet" reasons so wording stays consistent and greppable. */
 object Roadmap {
-    val PAINT = Availability.Planned("M4", "The brush engine is not built yet")
-    val SELECTION = Availability.Planned("M4", "The selection engine is not built yet")
-    val CROP_TRANSFORM = Availability.Planned("M4", "Crop and free-transform handles are not built yet")
-    val MASKS = Availability.Planned("M4", "Layer masks and mask painting are not built yet")
-    val PIXEL_EDIT = Availability.Planned("M4", "Pixel editing (cut, fill, merge) is not built yet")
-    val CANVAS_OPS = Availability.Planned("M4", "Image/canvas size and rotation are not built yet")
+    val SELECTION_REFINE = Availability.Planned("M6", "Feathering and selection refinements arrive with mask-native refinement tools")
+    val SMART_PICK = Availability.Planned("M6", "Colour-based selection (magic wand, quick selection) is not built yet")
+    val MAGNETIC = Availability.Planned("M6", "Edge-snapping lasso is not built yet; use Lasso or Polygonal Lasso")
     val ADJUSTMENTS = Availability.Planned("M5", "Non-destructive adjustment layers are not built yet")
     val GROUPS = Availability.Planned("M6", "Layer groups are not built yet")
     val RETOUCH = Availability.Planned("M6", "Clone and healing tools are not built yet")

@@ -32,18 +32,29 @@ enum class CommandId(
     // Edit
     Undo("Undo", "Ctrl+Z"),
     Redo("Redo", "Shift+Ctrl+Z"),
-    Cut("Cut", "Ctrl+X", planned = Roadmap.PIXEL_EDIT),
-    Copy("Copy", "Ctrl+C", planned = Roadmap.PIXEL_EDIT),
-    Paste("Paste", "Ctrl+V", planned = Roadmap.PIXEL_EDIT),
-    Fill("Fill…", "Shift+F5", planned = Roadmap.PIXEL_EDIT),
-    Stroke("Stroke…", planned = Roadmap.PIXEL_EDIT),
-    FreeTransform("Free Transform", "Ctrl+T", planned = Roadmap.CROP_TRANSFORM),
+    Cut("Cut", "Ctrl+X"),
+    Copy("Copy", "Ctrl+C"),
+    Paste("Paste", "Ctrl+V"),
+    Clear("Clear", "Del"),
+    Fill("Fill…", "Shift+F5"),
+    Stroke("Stroke…", planned = Availability.Planned("M6", "Stroking selections is not built yet")),
+    FreeTransform("Free Transform", "Ctrl+T"),
+    FlipLayerHorizontal("Flip Layer Horizontal"),
+    FlipLayerVertical("Flip Layer Vertical"),
+    SwapColors("Swap Colors", "X"),
+    ResetColors("Default Colors", "D"),
+    ForegroundColor("Foreground Color…"),
+    BackgroundColor("Background Color…"),
 
     // Image
-    ImageSize("Image Size…", "Alt+Ctrl+I", planned = Roadmap.CANVAS_OPS),
-    CanvasSize("Canvas Size…", "Alt+Ctrl+C", planned = Roadmap.CANVAS_OPS),
-    RotateCanvas("Image Rotation", planned = Roadmap.CANVAS_OPS),
-    Crop("Crop", planned = Roadmap.CROP_TRANSFORM),
+    ImageSize("Image Size…", "Alt+Ctrl+I"),
+    CanvasSize("Canvas Size…", "Alt+Ctrl+C"),
+    RotateCanvasCw("Rotate 90° Clockwise"),
+    RotateCanvasCcw("Rotate 90° Counter-clockwise"),
+    RotateCanvas180("Rotate 180°"),
+    FlipCanvasHorizontal("Flip Canvas Horizontal"),
+    FlipCanvasVertical("Flip Canvas Vertical"),
+    Crop("Crop"),
     Mode("Mode: RGB 8-bit only", planned = Roadmap.COLOR_MGMT),
     ConvertProfile("Assign / Convert Profile…", planned = Roadmap.COLOR_MGMT),
 
@@ -61,20 +72,30 @@ enum class CommandId(
     ResetLayerTransform("Reset Layer Transform"),
     NewGroup("Group Layers", "Ctrl+G", planned = Roadmap.GROUPS),
     Ungroup("Ungroup Layers", "Shift+Ctrl+G", planned = Roadmap.GROUPS),
-    AddMask("Add Layer Mask", planned = Roadmap.MASKS),
+    AddMask("Add Mask: Reveal"),
+    AddMaskHideAll("Add Mask: Hide"),
+    DeleteMask("Delete Mask"),
+    ApplyMask("Apply Mask"),
+    ToggleMaskEnabled("Disable / Enable Mask"),
+    InvertMask("Invert Mask", "Ctrl+I"),
+    EditMask("Edit Mask / Pixels", "Ctrl+\\"),
+    ViewMask("View Mask Alone"),
+    MaskOverlay("Mask Overlay", "\\"),
     NewAdjustmentLayer("New Adjustment Layer…", planned = Roadmap.ADJUSTMENTS),
-    MergeDown("Merge Down", "Ctrl+E", planned = Roadmap.PIXEL_EDIT),
-    Flatten("Flatten Image", planned = Roadmap.PIXEL_EDIT),
+    LayerViaCopy("Layer via Copy", "Ctrl+J"),
+    LayerViaCut("Layer via Cut", "Shift+Ctrl+J"),
+    MergeDown("Merge Down", "Ctrl+E"),
+    Flatten("Flatten Image…"),
     Rasterize("Rasterize", planned = Availability.Planned("M8", "Only raster layers exist today, so there is nothing to rasterize")),
 
     // Select
-    SelectAll("All", "Ctrl+A", planned = Roadmap.SELECTION),
-    Deselect("Deselect", "Ctrl+D", planned = Roadmap.SELECTION),
-    InverseSelection("Inverse", "Shift+Ctrl+I", planned = Roadmap.SELECTION),
-    Feather("Feather…", "Shift+F6", planned = Roadmap.SELECTION),
-    ExpandSelection("Expand…", planned = Roadmap.SELECTION),
-    ContractSelection("Contract…", planned = Roadmap.SELECTION),
-    ColorRange("Color Range…", planned = Roadmap.SELECTION),
+    SelectAll("All", "Ctrl+A"),
+    Deselect("Deselect", "Ctrl+D"),
+    InverseSelection("Inverse", "Shift+Ctrl+I"),
+    Feather("Feather…", "Shift+F6", planned = Roadmap.SELECTION_REFINE),
+    ExpandSelection("Expand…", planned = Roadmap.SELECTION_REFINE),
+    ContractSelection("Contract…", planned = Roadmap.SELECTION_REFINE),
+    ColorRange("Color Range…", planned = Roadmap.SMART_PICK),
     SelectSubject("Subject", planned = Roadmap.SMART_SELECT),
 
     // Filter
@@ -127,9 +148,9 @@ enum class CommandId(
     WindowProperties("Properties", planned = Roadmap.PRO_PANELS),
     WindowHistogram("Histogram", planned = Roadmap.PRO_PANELS),
     WindowNavigator("Navigator", planned = Roadmap.PRO_PANELS),
-    WindowBrushes("Brushes", planned = Roadmap.PAINT),
-    WindowColor("Color", planned = Roadmap.PAINT),
-    WindowSwatches("Swatches", planned = Roadmap.PAINT),
+    WindowBrushes("Brushes", planned = Roadmap.PRO_PANELS),
+    WindowColor("Color", planned = Roadmap.PRO_PANELS),
+    WindowSwatches("Swatches", planned = Roadmap.PRO_PANELS),
     WorkspacePresets("Workspace Presets", planned = Roadmap.WORKSPACE),
     ResetWorkspace("Reset Workspace"),
 
@@ -163,10 +184,16 @@ object Menus {
             sep + items(CommandId.DocumentInfo, CommandId.Export) +
             sep + items(CommandId.Preferences, CommandId.CloseDocument)),
         MenuSpec("Edit", items(CommandId.Undo, CommandId.Redo) +
-            sep + items(CommandId.Cut, CommandId.Copy, CommandId.Paste) +
-            sep + items(CommandId.Fill, CommandId.Stroke, CommandId.FreeTransform) +
+            sep + items(CommandId.Cut, CommandId.Copy, CommandId.Paste, CommandId.Clear) +
+            sep + items(CommandId.Fill, CommandId.Stroke) +
+            sep + h("Transform") + items(CommandId.FreeTransform, CommandId.FlipLayerHorizontal, CommandId.FlipLayerVertical) +
+            sep + h("Colors") + items(CommandId.ForegroundColor, CommandId.BackgroundColor, CommandId.SwapColors, CommandId.ResetColors) +
             sep + items(CommandId.Preferences)),
-        MenuSpec("Image", items(CommandId.ImageSize, CommandId.CanvasSize, CommandId.RotateCanvas, CommandId.Crop) +
+        MenuSpec("Image", items(CommandId.ImageSize, CommandId.CanvasSize, CommandId.Crop) +
+            sep + h("Image Rotation") + items(
+                CommandId.RotateCanvasCw, CommandId.RotateCanvasCcw, CommandId.RotateCanvas180,
+                CommandId.FlipCanvasHorizontal, CommandId.FlipCanvasVertical,
+            ) +
             sep + h("Adjustments") + items(
                 CommandId.AdjExposure, CommandId.AdjBrightnessContrast, CommandId.AdjLevels, CommandId.AdjCurves,
                 CommandId.AdjHueSaturation, CommandId.AdjColorBalance,
@@ -174,8 +201,12 @@ object Menus {
         MenuSpec("Layer", items(CommandId.NewLayer, CommandId.PlaceImage, CommandId.DuplicateLayer, CommandId.DeleteLayer, CommandId.RenameLayer) +
             sep + items(CommandId.ToggleLayerVisibility, CommandId.ToggleLayerLock) +
             sep + h("Arrange") + items(CommandId.BringToFront, CommandId.BringForward, CommandId.SendBackward, CommandId.SendToBack) +
-            sep + items(CommandId.ResetLayerTransform, CommandId.FreeTransform) +
-            sep + items(CommandId.NewGroup, CommandId.Ungroup, CommandId.AddMask, CommandId.NewAdjustmentLayer) +
+            sep + items(CommandId.ResetLayerTransform, CommandId.FreeTransform, CommandId.LayerViaCopy, CommandId.LayerViaCut) +
+            sep + h("Layer Mask") + items(
+                CommandId.AddMask, CommandId.AddMaskHideAll, CommandId.EditMask, CommandId.ToggleMaskEnabled,
+                CommandId.InvertMask, CommandId.ViewMask, CommandId.MaskOverlay, CommandId.ApplyMask, CommandId.DeleteMask,
+            ) +
+            sep + items(CommandId.NewGroup, CommandId.Ungroup, CommandId.NewAdjustmentLayer) +
             sep + items(CommandId.MergeDown, CommandId.Flatten, CommandId.Rasterize)),
         MenuSpec("Select", items(CommandId.SelectAll, CommandId.Deselect, CommandId.InverseSelection) +
             sep + h("Modify") + items(CommandId.Feather, CommandId.ExpandSelection, CommandId.ContractSelection) +
@@ -199,7 +230,10 @@ object Menus {
 
 /** The quick category strip (Edit | Adjust | FX | Filters | Layer | Select). */
 enum class QuickCategory(val label: String, val commands: List<CommandId>) {
-    Edit("Edit", listOf(CommandId.Undo, CommandId.Redo, CommandId.FreeTransform, CommandId.Fill, CommandId.Cut, CommandId.Copy, CommandId.Paste)),
+    Edit("Edit", listOf(
+        CommandId.Undo, CommandId.Redo, CommandId.FreeTransform, CommandId.Fill, CommandId.Clear,
+        CommandId.Cut, CommandId.Copy, CommandId.Paste, CommandId.Crop,
+    )),
     Adjust("Adjust", listOf(
         CommandId.AdjExposure, CommandId.AdjBrightnessContrast, CommandId.AdjLevels, CommandId.AdjCurves,
         CommandId.AdjHueSaturation, CommandId.AdjVibrance, CommandId.AdjTemperature, CommandId.AdjShadowsHighlights,
@@ -212,7 +246,8 @@ enum class QuickCategory(val label: String, val commands: List<CommandId>) {
     )),
     Layer("Layer", listOf(
         CommandId.NewLayer, CommandId.PlaceImage, CommandId.DuplicateLayer, CommandId.DeleteLayer,
-        CommandId.BringForward, CommandId.SendBackward, CommandId.ResetLayerTransform, CommandId.AddMask, CommandId.NewGroup,
+        CommandId.BringForward, CommandId.SendBackward, CommandId.ResetLayerTransform, CommandId.AddMask,
+        CommandId.LayerViaCopy, CommandId.MergeDown, CommandId.NewGroup,
     )),
     Select("Select", listOf(CommandId.SelectAll, CommandId.Deselect, CommandId.InverseSelection, CommandId.SelectSubject, CommandId.ColorRange)),
 }

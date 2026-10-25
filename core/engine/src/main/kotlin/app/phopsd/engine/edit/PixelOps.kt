@@ -83,6 +83,19 @@ object PixelOps {
         }
     }
 
+    /** Sets mask values inside the selection (or everywhere) to [value] (0 conceal … 255 reveal). */
+    fun fillMask(mask: TiledRaster, layerToDoc: Affine, sel: TiledRaster?, value: Int): RasterEdit? {
+        val rect = affectedRect(mask.width, mask.height, layerToDoc, sel) ?: return null
+        val v = value.coerceIn(0, 255)
+        return mapPixels(mask, rect) { x, y, p ->
+            val c = coverage(sel, layerToDoc, x, y)
+            if (c <= 0.0) p else {
+                val a = Pixels.alpha(p)
+                Pixels.pack((a + (v - a) * c + 0.5).toInt().coerceIn(0, 255), 0, 0, 0)
+            }
+        }
+    }
+
     /** The selected part of a layer as a new raster of the same size (Copy / Layer via Copy). */
     fun extract(raster: TiledRaster, layerToDoc: Affine, sel: TiledRaster?): TiledRaster {
         val out = TiledRaster(raster.width, raster.height)

@@ -549,7 +549,7 @@ class PaintingTest {
         doc = doc.applied(CanvasEdits.setMaskEnabled(doc, LayerId("Top"), false))
         // Selections are session state: not saved.
         f.store.put(RasterId("sel"), MipChain.build(sel))
-        doc = doc.copy(selection = Selection(RasterId("sel"), SelectionOutline(listOf(SelectionOp.Replace to SelectionShape.Rect(0.0, 0.0, 1.0, 1.0)))))
+        doc = doc.copy(selection = Selection(RasterId("sel"), SelectionOutline.of(SelectionShape.Rect(0.0, 0.0, 1.0, 1.0))))
         val bytes = ByteArrayOutputStream().also { ProjectWriter.write(doc, f.store, it, SaveInfo("t", 0L)) }.toByteArray()
         val loaded = ProjectReader.read(ByteArrayInputStream(bytes))
         assertEquals(doc.copy(selection = null), loaded.document)

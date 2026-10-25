@@ -97,7 +97,22 @@ sealed interface SelectionShape {
 
 enum class SelectionOp(val label: String) { Replace("New"), Add("Add"), Subtract("Subtract"), Intersect("Intersect") }
 
-data class SelectionOutline(val parts: List<Pair<SelectionOp, SelectionShape>>, val inverted: Boolean = false)
+/** One step of how a selection was built; replaying the steps in order yields its outline. */
+sealed interface OutlineStep {
+    data class Shape(val op: SelectionOp, val shape: SelectionShape) : OutlineStep
+    /** Select ▸ Inverse: everything on the canvas that was not selected. */
+    data object Invert : OutlineStep
+}
+
+data class SelectionOutline(val steps: List<OutlineStep>) {
+    fun then(step: OutlineStep): SelectionOutline =
+        if (step is OutlineStep.Shape && step.op == SelectionOp.Replace) SelectionOutline(listOf(step))
+        else SelectionOutline(steps + step)
+
+    companion object {
+        fun of(shape: SelectionShape) = SelectionOutline(listOf(OutlineStep.Shape(SelectionOp.Replace, shape)))
+    }
+}
 
 /**
  * The active selection: a document-sized coverage raster (alpha channel, 0..255) in the

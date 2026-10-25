@@ -1,5 +1,6 @@
 package app.phopsd.editor
 
+import app.phopsd.engine.edit.CanvasEdits
 import app.phopsd.engine.edit.DocumentEdits
 import app.phopsd.engine.edit.EditResult
 import app.phopsd.engine.edit.History
@@ -7,6 +8,7 @@ import app.phopsd.engine.geometry.AngleSnap
 import app.phopsd.engine.geometry.LayerPinch
 import app.phopsd.engine.geometry.LayerTransform
 import app.phopsd.engine.geometry.PointD
+import app.phopsd.engine.geometry.RectD
 import app.phopsd.engine.geometry.Viewport
 import app.phopsd.engine.model.BlendMode
 import app.phopsd.engine.model.Document
@@ -27,6 +29,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import java.util.IdentityHashMap
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -48,6 +52,70 @@ class EditorController(
 
     private val _state = MutableStateFlow(EditorState())
     val state: StateFlow<EditorState> = _state.asStateFlow()
+    internal val mutableState: MutableStateFlow<EditorState> get() = _state
+
+    /** Painting, selection, mask, crop, transform and pixel commands (M4). */
+    val tools = CanvasTools(this)
+
+    // ---------------------------------------------------------------- rasters & live strokes
+
+    /** Rasters created for an edit that is about to be committed (protected from release). */
+    private val pending = ConcurrentHashMap.newKeySet<RasterId>()
+
+    @Volatile
+    private var liveOverride: Pair<RasterId, MipChain>? = null
+
+    /**
+     * What renderers should read: the raster store, except that the raster being painted
+     * shows its live (in-progress) pixels.
+     */
+    val renderLookup: RasterLookup = RasterLookup { id -> liveOverride?.takeIf { it.first == id }?.second ?: rasters.mips(id) }
+
+    private val _strokeRevision = MutableStateFlow(0L)
+
+    /** Increments whenever stroke pixels change; read the region with [takeStrokeDirty]. */
+    val strokeRevision: StateFlow<Long> = _strokeRevision.asStateFlow()
+    private var strokeDirty: RectD? = null
+    private val strokeLock = Any()
+
+    internal fun setLiveOverride(id: RasterId?, mips: MipChain?) {
+        liveOverride = if (id != null && mips != null) id to mips else null
+    }
+
+    internal fun addStrokeDirty(r: RectD) {
+        synchronized(strokeLock) {
+            val d = strokeDirty
+            strokeDirty = if (d == null) r else RectD(minOf(d.left, r.left), minOf(d.top, r.top), maxOf(d.right, r.right), maxOf(d.bottom, r.bottom))
+        }
+        _strokeRevision.update { it + 1 }
+    }
+
+    /** Document region changed by strokes since the last call (null if none). */
+    fun takeStrokeDirty(): RectD? = synchronized(strokeLock) { strokeDirty.also { strokeDirty = null } }
+
+    internal fun putPending(id: RasterId, mips: MipChain) {
+        pending += id
+        rasters.put(id, mips)
+    }
+
+    internal fun compositorFor(): Compositor = compositor
+
+    /**
+     * Runs a long pixel operation (merge, flatten, apply mask). The app replaces this with a
+     * background runner that shows a busy indicator; tests run it inline.
+     */
+    @Volatile
+    var heavyRunner: (label: String, task: () -> Unit) -> Unit = { _, task -> task() }
+
+    internal fun runHeavy(label: String, task: () -> Unit) = heavyRunner(label, task)
+
+    /**
+     * Undo history pixel budget. Pixel edits share unchanged tiles with earlier states, so
+     * history costs only the tiles each step touched; when the total exceeds this, the oldest
+     * steps are forgotten (never the current state).
+     */
+    @Volatile
+    var historyBudgetBytes: Long = 384L shl 20
 
     private val _effects = MutableSharedFlow<EditorEffect>(extraBufferCapacity = 16)
     val effects: SharedFlow<EditorEffect> = _effects.asSharedFlow()
@@ -109,7 +177,10 @@ class EditorController(
     }
 
     fun closeDocument() {
+        tools.cancelStroke()
         rasters.clear()
+        pending.clear()
+        liveOverride = null
         pinch = null
         _state.update {
             it.copy(
@@ -117,6 +188,7 @@ class EditorController(
                 dialog = null, dirty = false, lastEditAtMillis = null, busy = null,
                 project = null, savedSnapshot = null, saveState = SaveState.Idle, autosavedAtMillis = null,
                 afterSave = null, rotationHud = null,
+                selectionDraft = null, crop = null, paintTarget = PaintTarget.Pixels, maskView = null, stroking = false,
             )
         }
     }
@@ -142,15 +214,21 @@ class EditorController(
                 autosavedAtMillis = null,
                 afterSave = null,
                 rotationHud = null,
+                selectionDraft = null,
+                crop = null,
+                paintTarget = PaintTarget.Pixels,
+                maskView = null,
+                stroking = false,
             )
         }
+        if (state.value.tool == Tool.Crop) tools.startCropSession()
     }
 
     /** Selection changes are not content changes; everything else in the document is. */
     private fun dirtyFor(current: Document?, saved: Document?): Boolean = when {
         current == null -> false
         saved == null -> true
-        else -> current.copy(activeLayerId = null) != saved.copy(activeLayerId = null)
+        else -> current.contentKey() != saved.contentKey()
     }
 
     fun setBusy(message: String?) = _state.update { it.copy(busy = message) }
@@ -249,8 +327,41 @@ class EditorController(
                 }
             }
             CommandId.DuplicateLayer, CommandId.RenameLayer, CommandId.ToggleLayerVisibility,
-            CommandId.ToggleLayerLock,
+            CommandId.ToggleLayerLock, CommandId.Copy, CommandId.LayerViaCopy,
             -> needLayer()
+
+            CommandId.Cut, CommandId.Clear, CommandId.Fill, CommandId.LayerViaCut -> needLayer().orElse { pixelEditable(active as RasterLayer) }
+            CommandId.FreeTransform, CommandId.FlipLayerHorizontal, CommandId.FlipLayerVertical -> needLayer().orElse {
+                if (active!!.locked) Availability.Blocked("“${active.name}” is locked") else Availability.Enabled
+            }
+            CommandId.Paste -> when {
+                doc == null -> noDoc
+                !tools.hasClipboard -> Availability.Blocked("The clipboard is empty")
+                else -> Availability.Enabled
+            }
+            CommandId.AddMask, CommandId.AddMaskHideAll -> needLayer().orElse {
+                when {
+                    (active as RasterLayer).mask != null -> Availability.Blocked("“${active.name}” already has a mask")
+                    active.locked -> Availability.Blocked("“${active.name}” is locked")
+                    else -> Availability.Enabled
+                }
+            }
+            CommandId.DeleteMask, CommandId.ApplyMask, CommandId.ToggleMaskEnabled, CommandId.InvertMask,
+            CommandId.EditMask, CommandId.ViewMask, CommandId.MaskOverlay,
+            -> needLayer().orElse {
+                if ((active as RasterLayer).mask == null) Availability.Blocked("“${active.name}” has no layer mask") else Availability.Enabled
+            }
+            CommandId.MergeDown -> needLayer().orElse {
+                val i = doc!!.indexOf(active!!.id)
+                if (i <= 0) Availability.Blocked("There is no layer below to merge into")
+                else CanvasEdits.mergeDownProblem(active, doc.layers[i - 1])?.let { Availability.Blocked(it) } ?: Availability.Enabled
+            }
+            CommandId.Deselect, CommandId.InverseSelection -> when {
+                doc == null -> noDoc
+                doc.selection == null -> Availability.Blocked("Nothing is selected")
+                else -> Availability.Enabled
+            }
+            CommandId.SwapColors, CommandId.ResetColors, CommandId.ForegroundColor, CommandId.BackgroundColor -> Availability.Enabled
 
             CommandId.Save -> when {
                 doc == null -> noDoc
@@ -276,6 +387,12 @@ class EditorController(
 
     private inline fun Availability.orElse(next: () -> Availability): Availability =
         if (this.isEnabled) next() else this
+
+    private fun pixelEditable(l: RasterLayer): Availability = when {
+        l.locked -> Availability.Blocked("“${l.name}” is locked")
+        !l.visible -> Availability.Blocked("“${l.name}” is hidden")
+        else -> Availability.Enabled
+    }
 
     /** Runs a command, or explains why it cannot run. */
     fun dispatch(id: CommandId) {
@@ -328,6 +445,46 @@ class EditorController(
             CommandId.SendToBack -> commit("Send to Back", DocumentEdits.moveLayer(doc!!, activeId!!, 0))
             CommandId.ResetLayerTransform -> commit("Reset Transform", DocumentEdits.resetTransform(doc!!, activeId!!))
 
+            CommandId.Cut -> tools.cut()
+            CommandId.Copy -> tools.copy()
+            CommandId.Paste -> tools.paste()
+            CommandId.Clear -> tools.clear()
+            CommandId.Fill -> showDialog(EditorDialog.Fill(doc!!.selection != null))
+            CommandId.FreeTransform -> selectTool(Tool.Transform)
+            CommandId.FlipLayerHorizontal -> tools.flipLayer(horizontal = true)
+            CommandId.FlipLayerVertical -> tools.flipLayer(horizontal = false)
+            CommandId.SwapColors -> tools.swapColors()
+            CommandId.ResetColors -> tools.resetColors()
+            CommandId.ForegroundColor -> showDialog(EditorDialog.ColorPicker(ColorSlot.Foreground, s.colors.foreground))
+            CommandId.BackgroundColor -> showDialog(EditorDialog.ColorPicker(ColorSlot.Background, s.colors.background))
+
+            CommandId.ImageSize -> showDialog(EditorDialog.ImageSize(doc!!.width, doc.height))
+            CommandId.CanvasSize -> showDialog(EditorDialog.CanvasSize(doc!!.width, doc.height))
+            CommandId.RotateCanvasCw -> tools.rotateCanvas(CanvasEdits.Rotation.Cw90)
+            CommandId.RotateCanvasCcw -> tools.rotateCanvas(CanvasEdits.Rotation.Ccw90)
+            CommandId.RotateCanvas180 -> tools.rotateCanvas(CanvasEdits.Rotation.Half)
+            CommandId.FlipCanvasHorizontal -> tools.flipCanvas(horizontal = true)
+            CommandId.FlipCanvasVertical -> tools.flipCanvas(horizontal = false)
+            CommandId.Crop -> tools.cropCommand()
+
+            CommandId.AddMask -> tools.addMask(reveal = true)
+            CommandId.AddMaskHideAll -> tools.addMask(reveal = false)
+            CommandId.DeleteMask -> tools.deleteMask()
+            CommandId.ApplyMask -> tools.applyMask()
+            CommandId.ToggleMaskEnabled -> tools.toggleMaskEnabled()
+            CommandId.InvertMask -> tools.invertMask()
+            CommandId.EditMask -> tools.setPaintTarget(if (s.paintsMask) PaintTarget.Pixels else PaintTarget.Mask)
+            CommandId.ViewMask -> tools.setMaskView(if (s.maskView == MaskView.Alone) null else MaskView.Alone)
+            CommandId.MaskOverlay -> tools.setMaskView(if (s.maskView == MaskView.Overlay) null else MaskView.Overlay)
+            CommandId.LayerViaCopy -> tools.layerVia(cut = false)
+            CommandId.LayerViaCut -> tools.layerVia(cut = true)
+            CommandId.MergeDown -> tools.mergeDown()
+            CommandId.Flatten -> tools.requestFlatten()
+
+            CommandId.SelectAll -> tools.selectAll()
+            CommandId.Deselect -> tools.deselect()
+            CommandId.InverseSelection -> tools.inverseSelection()
+
             CommandId.ZoomIn -> viewportCentered { vp -> vp.withZoom(Viewport.nextZoomStop(vp.zoom)) }
             CommandId.ZoomOut -> viewportCentered { vp -> vp.withZoom(Viewport.previousZoomStop(vp.zoom)) }
             CommandId.FitOnScreen -> viewportCentered { it.fitToView() }
@@ -368,6 +525,9 @@ class EditorController(
             CommandId.WindowHistory -> s.panels.historyVisible
             CommandId.WindowToolOptions -> s.panels.toolOptionsVisible
             CommandId.WindowStatusBar -> s.panels.statusBarVisible
+            CommandId.EditMask -> if ((s.document?.activeLayer as? RasterLayer)?.mask != null) s.paintsMask else null
+            CommandId.ViewMask -> s.maskView == MaskView.Alone
+            CommandId.MaskOverlay -> s.maskView == MaskView.Overlay
             else -> null
         }
     }
@@ -389,7 +549,7 @@ class EditorController(
         val h = state.value.history ?: return
         if (!h.canUndo) return
         val label = h.undoLabel
-        _state.update { it.copy(history = h.undo(), live = null, lastEditAtMillis = clock()).withDirty() }
+        _state.update { it.copy(history = h.undo(), live = null, lastEditAtMillis = clock()).withDirty().withViewportSynced() }
         notice("Undo $label")
     }
 
@@ -397,13 +557,13 @@ class EditorController(
         val h = state.value.history ?: return
         if (!h.canRedo) return
         val label = h.redoLabel
-        _state.update { it.copy(history = h.redo(), live = null, lastEditAtMillis = clock()).withDirty() }
+        _state.update { it.copy(history = h.redo(), live = null, lastEditAtMillis = clock()).withDirty().withViewportSynced() }
         notice("Redo $label")
     }
 
     fun jumpToHistory(index: Int) = _state.update {
         val h = it.history ?: return@update it
-        if (index == h.index) it else it.copy(history = h.jumpTo(index), live = null, lastEditAtMillis = clock()).withDirty()
+        if (index == h.index) it else it.copy(history = h.jumpTo(index), live = null, lastEditAtMillis = clock()).withDirty().withViewportSynced()
     }
 
     /** Ends a continuous edit (slider release): the next change starts a new undo step. */
@@ -413,7 +573,7 @@ class EditorController(
      * Applies an edit result. Rejections are explained to the user, except "No change"
      * which is silently ignored so idempotent UI events never create empty undo steps.
      */
-    private fun commit(label: String, result: EditResult, coalesce: String? = null): Boolean {
+    internal fun commit(label: String, result: EditResult, coalesce: String? = null): Boolean {
         when (result) {
             is EditResult.Rejected -> {
                 if (result.reason != "No change") notice(result.reason, NoticeKind.Warning)
@@ -422,15 +582,74 @@ class EditorController(
             is EditResult.Applied -> {
                 _state.update { s ->
                     val h = s.history ?: return@update s
-                    s.copy(history = h.push(label, result.document, coalesce), lastEditAtMillis = clock()).withDirty()
+                    s.copy(history = h.push(label, result.document, coalesce), lastEditAtMillis = clock()).withDirty().withViewportSynced()
                 }
-                state.value.history?.let { rasters.retainOnly(it.referencedRasters()) }
+                releaseUnreferenced()
                 return true
             }
         }
     }
 
+    /** Commits an edit that introduced new rasters ([ids]); applies the history memory budget. */
+    internal fun commitPixels(label: String, result: EditResult, id: RasterId): Boolean = commitPixels(label, result, listOf(id))
+
+    internal fun commitPixels(label: String, result: EditResult, ids: List<RasterId>): Boolean {
+        val ok = try {
+            commit(label, result)
+        } finally {
+            for (id in ids) pending -= id
+        }
+        if (!ok) releaseUnreferenced() else trimHistoryToBudget()
+        return ok
+    }
+
+    private fun releaseUnreferenced() {
+        val h = state.value.history ?: return
+        rasters.retainOnly(h.referencedRasters() + pending)
+    }
+
+    /** Bytes of distinct tiles referenced by the whole history (shared tiles counted once). */
+    fun historyPixelBytes(): Long {
+        val h = state.value.history ?: return 0
+        val seen = IdentityHashMap<IntArray, Boolean>()
+        var tileBytes = 0L
+        for (id in h.referencedRasters()) {
+            val m = rasters.mips(id) ?: continue
+            for (level in m.levels) {
+                val before = seen.size
+                level.collectTileArrays(seen)
+                tileBytes += (seen.size - before).toLong() * level.tileSize * level.tileSize * 4L
+            }
+        }
+        return tileBytes
+    }
+
+    private fun trimHistoryToBudget() {
+        var trimmed = 0
+        while (historyPixelBytes() > historyBudgetBytes) {
+            val h = state.value.history ?: break
+            val next = h.dropOldest()
+            if (next === h) break
+            _state.update { it.copy(history = next) }
+            trimmed++
+        }
+        if (trimmed > 0) {
+            releaseUnreferenced()
+            notice("Oldest $trimmed undo step${if (trimmed == 1) "" else "s"} released to stay within memory")
+        }
+    }
+
     private fun EditorState.withDirty(): EditorState = copy(dirty = dirtyFor(history?.current, savedSnapshot))
+
+    /** After crop/canvas edits (or undoing them) the viewport must know the new canvas size. */
+    private fun EditorState.withViewportSynced(): EditorState {
+        val d = history?.current ?: return this
+        val vp = viewport ?: return this
+        if (vp.docWidth == d.width && vp.docHeight == d.height) return this
+        val fitted = vp.copy(docWidth = d.width, docHeight = d.height, centerX = d.width / 2.0, centerY = d.height / 2.0).fitToView()
+        val c = crop?.let { CropSession(app.phopsd.engine.geometry.CropBox.initial(d.width, d.height, app.phopsd.engine.geometry.CropBox.ratioFor(it.aspect, d.width, d.height)), it.aspect) }
+        return copy(viewport = fitted, crop = c)
+    }
 
     /** Applies a change that is not an undo step (layer selection). */
     private fun replaceCurrent(result: EditResult) {
@@ -534,7 +753,17 @@ class EditorController(
             notice("${tool.label}: ${tool.availability.explanation}")
             return
         }
-        _state.update { it.copy(tool = tool) }
+        val prev = state.value.tool
+        if (prev == tool) return
+        tools.transformCancel()
+        _state.update {
+            it.copy(
+                tool = tool,
+                crop = if (tool == Tool.Crop) it.crop else null,
+                selectionDraft = if (tool.isSelectionTool) it.selectionDraft else null,
+            )
+        }
+        if (tool == Tool.Crop) tools.startCropSession()
     }
 
     fun setAutoSelectLayer(on: Boolean) = _state.update { it.copy(autoSelectLayer = on) }
@@ -784,6 +1013,8 @@ class EditorController(
     private inline fun viewportCentered(crossinline f: (Viewport) -> Viewport) = updateViewport(f)
 
     // ---------------------------------------------------------------- helpers
+
+    internal fun uniqueLayerName(doc: Document, base: String): String = uniqueName(doc, base)
 
     private fun uniqueName(doc: Document, base: String): String {
         val clean = base.trim().ifEmpty { "Layer" }.take(DocumentEdits.MAX_NAME_LENGTH)

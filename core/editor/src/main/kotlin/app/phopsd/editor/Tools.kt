@@ -9,33 +9,37 @@ enum class Tool(
     val shortcut: String?,
     val availability: Availability,
 ) {
-    RectMarquee("Rectangular Marquee", "M", Roadmap.SELECTION),
-    EllipticalMarquee("Elliptical Marquee", "M", Roadmap.SELECTION),
-    Lasso("Lasso", "L", Roadmap.SELECTION),
-    PolygonalLasso("Polygonal Lasso", "L", Roadmap.SELECTION),
-    MagneticLasso("Magnetic Lasso", "L", Roadmap.SELECTION),
+    RectMarquee("Rectangular Marquee", "M", Availability.Enabled),
+    EllipticalMarquee("Elliptical Marquee", "M", Availability.Enabled),
+    Lasso("Lasso", "L", Availability.Enabled),
+    PolygonalLasso("Polygonal Lasso", "L", Availability.Enabled),
+    MagneticLasso("Magnetic Lasso", "L", Roadmap.MAGNETIC),
     ObjectSelection("Object Selection", "W", Roadmap.SMART_SELECT),
-    QuickSelection("Quick Selection", "W", Roadmap.SELECTION),
-    MagicWand("Magic Wand", "W", Roadmap.SELECTION),
+    QuickSelection("Quick Selection", "W", Roadmap.SMART_PICK),
+    MagicWand("Magic Wand", "W", Roadmap.SMART_PICK),
     Move("Move", "V", Availability.Enabled),
-    Brush("Brush", "B", Roadmap.PAINT),
+    Brush("Brush", "B", Availability.Enabled),
     Healing("Healing Brush", "J", Roadmap.RETOUCH),
     CloneStamp("Clone Stamp", "S", Roadmap.RETOUCH),
-    Eraser("Eraser", "E", Roadmap.PAINT),
-    Crop("Crop", "C", Roadmap.CROP_TRANSFORM),
-    Transform(
-        "Free Transform", "Ctrl+T",
-        Availability.Planned("M4", "On-canvas transform handles are not built yet; use Move tool options for numeric scale/rotation"),
-    ),
+    Eraser("Eraser", "E", Availability.Enabled),
+    Crop("Crop", "C", Availability.Enabled),
+    Transform("Free Transform", "Ctrl+T", Availability.Enabled),
     Gradient("Gradient", "G", Roadmap.GRADIENT),
     PaintBucket("Paint Bucket", "G", Roadmap.GRADIENT),
     Text("Horizontal Type", "T", Roadmap.TEXT),
-    Mask("Mask", null, Roadmap.MASKS),
+    Mask("Mask Brush", null, Availability.Enabled),
     Hand("Hand", "H", Availability.Enabled),
     Zoom("Zoom", "Z", Availability.Enabled),
     Pen("Pen", "P", Roadmap.PATHS),
-    Eyedropper("Eyedropper", "I", Availability.Planned("M4", "Colour sampling arrives with the brush engine")),
+    Eyedropper("Eyedropper", "I", Availability.Enabled),
 }
+
+/** Tools that put pixels (or mask values) down with the brush engine. */
+val Tool.isBrushLike: Boolean get() = this == Tool.Brush || this == Tool.Eraser || this == Tool.Mask
+
+/** Tools that draw a selection. */
+val Tool.isSelectionTool: Boolean
+    get() = this == Tool.RectMarquee || this == Tool.EllipticalMarquee || this == Tool.Lasso || this == Tool.PolygonalLasso
 
 enum class ToolGroup(val label: String, val tools: List<Tool>) {
     Select("Select", listOf(
