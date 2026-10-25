@@ -65,7 +65,7 @@ internal fun ImageSizeDialog(width: Int, height: Int, c: EditorController) {
         width = 440.dp,
         actions = {
             PhoButton("Cancel", c::dismissDialog)
-            PhoButton("Apply", { if (valid) c.tools.imageSize(wv!!, hv!!) }, primary = true, enabled = valid)
+            PhoButton("Apply", { if (valid && wv != null && hv != null) c.tools.imageSize(wv, hv) }, primary = true, enabled = valid)
         },
     ) {
         LabeledRow("Width") {
@@ -113,7 +113,7 @@ internal fun CanvasSizeDialog(width: Int, height: Int, c: EditorController) {
         width = 460.dp,
         actions = {
             PhoButton("Cancel", c::dismissDialog)
-            PhoButton("Apply", { if (valid) c.tools.canvasSize(wv!!, hv!!, (anchor % 3) / 2.0, (anchor / 3) / 2.0) }, primary = true, enabled = valid)
+            PhoButton("Apply", { if (valid && wv != null && hv != null) c.tools.canvasSize(wv, hv, (anchor % 3) / 2.0, (anchor / 3) / 2.0) }, primary = true, enabled = valid)
         },
     ) {
         LabeledRow("Width") { PhoTextField(w, { w = it.filter(Char::isDigit).take(5) }, Modifier.fillMaxWidth(), numeric = true, suffix = "px") }

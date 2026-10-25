@@ -33,6 +33,7 @@ import app.phopsd.editor.EditorState
 import app.phopsd.editor.NumericTarget
 import app.phopsd.editor.Tool
 import app.phopsd.editor.TwoFingerTarget
+import app.phopsd.editor.isBrushLike
 import app.phopsd.engine.geometry.AngleSnap
 import app.phopsd.engine.geometry.Viewport
 import app.phopsd.engine.model.RasterLayer
@@ -65,8 +66,11 @@ fun ToolOptionsBar(state: EditorState, c: EditorController, modifier: Modifier =
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val tool = state.effectiveTool
-        ToolChip(tool)
-        OptionsSep()
+        // Brush tools show their own stroke preview + preset chip (reference brush strip).
+        if (!tool.isBrushLike) {
+            ToolChip(tool)
+            OptionsSep()
+        }
         when (tool) {
             Tool.Move -> MoveOptions(state, c)
             Tool.Hand -> ViewOptions(state, c)
