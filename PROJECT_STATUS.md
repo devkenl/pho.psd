@@ -15,7 +15,7 @@ The original development environment had **no access to Google Maven, Maven Cent
 | Check | Result | How |
 |---|---|---|
 | `:core:engine` + `:core:editor` compile (Kotlin, warnings as errors) | ✅ pass | Kotlin compiler bundled with local Gradle (2.0.21) — `tools/run-core-tests-offline.sh` |
-| Core unit tests | ✅ **117 / 117 pass** (M3 added 43) | JUnit 4.13.2 — same script; also run by CI |
+| Core unit tests | ✅ **117 / 117 pass** (M3 added 43) | JUnit 4.13.2 — same script; CI run 40190963223 also: 117 run, 0 failures |
 | `:app` type-check against the real AndroidX + Android APIs | ✅ pass, 1 known tooling artifact | `tools/compile-check/` generates Kotlin stubs from androidx `api/current.txt` signature files (androidx commit `53bc2d6`, 2026-10-23) and compiles the app against them plus Android API 37 `android.jar`. The only reported error comes from the stub generator: the stub `ComponentActivity` had to be made abstract. |
 | Compose compiler plugin rules | ⚠️ not checked | Stub compile runs without the plugin; composable-context rules were reviewed by hand |
 | `./gradlew assembleDebug` | ✅ **pass in GitHub Actions** | Not possible locally; CI run 40177654382 |
@@ -88,11 +88,10 @@ No tablet measurements exist yet. Moving a layer re-composites a 1280-px preview
 3. Engine tiles live on the Java heap (`largeHeap`). Very large images are downsampled on import rather than tiled to disk. Disk-backed/native tiles are M7.
 4. Preview bitmaps are released by GC, not pooled (M7 texture/bitmap pooling).
 5. SAF cannot replace a document atomically. pho.psd verifies before and after copying and restores a private backup on failure, but a power loss *during* the final copy could still leave the destination incomplete. The previous version then survives in the app's private backup folder, and the autosave also holds the current work.
-6. The `BasicTextField(String…)` overload used in dialogs is deprecated on current AndroidX (it still compiles). Migrate to the `TextFieldState` API.
-7. Channels panel shows composite-derived thumbnails only. Single-channel viewing is planned (M4).
-8. Autosave runs 30 s after editing pauses and when the app is backgrounded. If the process is killed within that window, the last ~30 s of edits can be lost.
-9. `.phopsd` has no registered MIME type, so the Open Project picker shows all files; the content is validated on open.
-10. Tiles are written uncompressed-then-deflated per tile on one thread. Large saves take seconds (they run in the background); parallel encoding is a later optimisation.
+6. Channels panel shows composite-derived thumbnails only. Single-channel viewing is planned (M4).
+7. Autosave runs 30 s after editing pauses and when the app is backgrounded. If the process is killed within that window, the last ~30 s of edits can be lost.
+8. `.phopsd` has no registered MIME type, so the Open Project picker shows all files; the content is validated on open.
+9. Tiles are written uncompressed-then-deflated per tile on one thread. Large saves take seconds (they run in the background); parallel encoding is a later optimisation.
 
 ## Next steps (recommended order)
 1. **On-device M3 check** (roadmap acceptance): import → layer edits → Save → force-stop the app → reopen from Recents → compare with the original → Export PNG and JPEG and inspect them in another app. Also: edit, background the app for 5 s, force-stop, relaunch → Recover. Then try two-finger view/layer rotation with snapping.

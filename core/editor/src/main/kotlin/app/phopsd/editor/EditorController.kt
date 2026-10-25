@@ -319,7 +319,7 @@ class EditorController(
             }
             CommandId.DuplicateLayer -> commit("Duplicate Layer", DocumentEdits.duplicateLayer(doc!!, activeId!!))
             CommandId.DeleteLayer -> commit("Delete Layer", DocumentEdits.deleteLayer(doc!!, activeId!!))
-            CommandId.RenameLayer -> showDialog(EditorDialog.RenameLayer(activeId!!, doc!!.activeLayer!!.name))
+            CommandId.RenameLayer -> showDialog(EditorDialog.RenameLayer(activeId!!, doc.activeLayer!!.name))
             CommandId.ToggleLayerVisibility -> toggleVisibility(activeId!!)
             CommandId.ToggleLayerLock -> toggleLock(activeId!!)
             CommandId.BringForward -> commit("Bring Forward", DocumentEdits.moveUp(doc!!, activeId!!))

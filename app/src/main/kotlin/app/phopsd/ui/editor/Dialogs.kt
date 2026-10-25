@@ -297,12 +297,12 @@ private fun NumericEntryDialog(target: NumericTarget, current: Double, c: Editor
         width = 360.dp,
         actions = {
             PhoButton("Cancel", c::dismissDialog)
-            PhoButton("Apply", { if (valid) c.applyNumeric(target, value!!) }, primary = true, enabled = valid)
+            PhoButton("Apply", { if (valid) c.applyNumeric(target, value) }, primary = true, enabled = valid)
         },
     ) {
         PhoTextField(
             text, { text = it }, Modifier.fillMaxWidth(), numeric = true, suffix = target.unit,
-            onDone = { if (valid) c.applyNumeric(target, value!!) },
+            onDone = { if (valid) c.applyNumeric(target, value) },
         )
         Spacer(Modifier.height(6.dp))
         Text(
