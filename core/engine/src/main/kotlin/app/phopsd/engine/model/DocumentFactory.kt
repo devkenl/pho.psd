@@ -108,7 +108,7 @@ object DocumentFactory {
     /** A new transparent raster layer covering the canvas. Costs no pixel memory until painted. */
     fun emptyLayer(doc: Document, store: RasterStore, name: String): RasterLayer {
         val rasterId = RasterId.random()
-        store.put(rasterId, MipChain.single(TiledRaster.solid(doc.width, doc.height, Pixels.TRANSPARENT)))
+        store.put(rasterId, MipChain.build(TiledRaster.solid(doc.width, doc.height, Pixels.TRANSPARENT)))
         return RasterLayer(
             id = LayerId.random(),
             name = name,

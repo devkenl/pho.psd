@@ -1,5 +1,6 @@
 package app.phopsd.engine.raster
 
+import app.phopsd.engine.geometry.IntRect
 import kotlin.math.floor
 import kotlin.math.ln
 
@@ -47,6 +48,54 @@ class MipChain private constructor(val levels: List<TiledRaster>) {
         fun single(base: TiledRaster): MipChain {
             require(base.isFrozen)
             return MipChain(listOf(base))
+        }
+
+        /**
+         * A single-level chain over a raster that is still being edited (live brush preview).
+         * Never store it: it is not frozen and has no reduced levels.
+         */
+        fun live(base: TiledRaster): MipChain = MipChain(listOf(base))
+
+        /**
+         * The chain for [newBase], an edited version of [old]'s base (same size) in which only
+         * [dirty] (base pixels) changed. Each level is derived copy-on-write from the old level
+         * and only the affected region is recomputed, so a brush stroke costs time and memory
+         * proportional to the stroke, not the image.
+         */
+        fun derive(old: MipChain, newBase: TiledRaster, dirty: IntRect): MipChain {
+            require(newBase.isFrozen && newBase.width == old.width && newBase.height == old.height)
+            val levels = ArrayList<TiledRaster>(old.levels.size)
+            levels.add(newBase)
+            var prev = newBase
+            var rect = dirty.intersect(IntRect(0, 0, newBase.width, newBase.height))
+            for (i in 1 until old.levels.size) {
+                val oldLevel = old.levels[i]
+                rect = IntRect(rect.left / 2, rect.top / 2, (rect.right + 1) / 2, (rect.bottom + 1) / 2)
+                    .intersect(IntRect(0, 0, oldLevel.width, oldLevel.height))
+                if (rect.isEmpty) {
+                    levels.add(oldLevel)
+                    prev = oldLevel
+                    continue
+                }
+                val lv = oldLevel.derive()
+                for (y in rect.top until rect.bottom) {
+                    val sy = y * 2
+                    for (x in rect.left until rect.right) {
+                        val sx = x * 2
+                        lv.setPixel(
+                            x, y,
+                            average4(
+                                prev.pixelClamped(sx, sy), prev.pixelClamped(sx + 1, sy),
+                                prev.pixelClamped(sx, sy + 1), prev.pixelClamped(sx + 1, sy + 1),
+                            ),
+                        )
+                    }
+                }
+                lv.freeze()
+                levels.add(lv)
+                prev = lv
+            }
+            return MipChain(levels)
         }
 
         /** 2x box reduction. Odd edges clamp, so the last column/row is averaged with itself. */

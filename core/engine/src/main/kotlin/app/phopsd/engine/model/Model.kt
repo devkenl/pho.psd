@@ -71,6 +71,41 @@ data class SourceInfo(
 )
 
 /**
+ * A grayscale layer mask in the layer's own pixel space (same size as the layer raster), so
+ * it moves and transforms with the layer. Values live in the alpha channel of a
+ * [app.phopsd.engine.raster.TiledRaster]: 255 reveals, 0 conceals, in between partially.
+ * Painting on a mask never touches the layer's pixels.
+ */
+data class LayerMask(
+    val rasterId: RasterId,
+    val enabled: Boolean = true,
+)
+
+/**
+ * Shapes and operations that produced the current selection, kept for drawing the
+ * "marching ants" outline. The authoritative selection is the raster mask.
+ */
+sealed interface SelectionShape {
+    data class Rect(val left: Double, val top: Double, val right: Double, val bottom: Double) : SelectionShape
+    data class Ellipse(val left: Double, val top: Double, val right: Double, val bottom: Double) : SelectionShape
+    /** Closed polygon (lasso); points as alternating x, y document coordinates. */
+    class Polygon(val xy: DoubleArray) : SelectionShape {
+        override fun equals(other: Any?) = other is Polygon && other.xy.contentEquals(xy)
+        override fun hashCode() = xy.contentHashCode()
+    }
+}
+
+enum class SelectionOp(val label: String) { Replace("New"), Add("Add"), Subtract("Subtract"), Intersect("Intersect") }
+
+data class SelectionOutline(val parts: List<Pair<SelectionOp, SelectionShape>>, val inverted: Boolean = false)
+
+/**
+ * The active selection: a document-sized coverage raster (alpha channel, 0..255) in the
+ * raster store, plus its outline. Undoable, but not saved in project files.
+ */
+data class Selection(val rasterId: RasterId, val outline: SelectionOutline)
+
+/**
  * A node in the layer stack. Only raster layers exist today; groups (M6), adjustment
  * layers (M5), masks (M4), text and vector layers (M8) are deliberately not modelled
  * until they are implemented end-to-end.
@@ -97,6 +132,7 @@ data class RasterLayer(
     override val opacity: Float = 1f,
     override val blendMode: BlendMode = BlendMode.Normal,
     val source: SourceInfo? = null,
+    val mask: LayerMask? = null,
 ) : Layer {
     init {
         require(opacity in 0f..1f) { "Opacity must be within 0..1" }
@@ -122,6 +158,7 @@ data class Document(
     val activeLayerId: LayerId?,
     val dpi: Double = 72.0,
     val colorProfile: ColorProfileInfo = ColorProfileInfo.SRGB_8,
+    val selection: Selection? = null,
 ) {
     init {
         require(width > 0 && height > 0) { "Document must be at least 1x1" }
@@ -133,7 +170,19 @@ data class Document(
     fun indexOf(id: LayerId): Int = layers.indexOfFirst { it.id == id }
     val activeLayer: Layer? get() = activeLayerId?.let { layer(it) }
 
-    fun rasterIds(): Set<RasterId> = layers.mapNotNull { (it as? RasterLayer)?.rasterId }.toSet()
+    /** Every raster referenced: layer pixels, layer masks and the selection. */
+    fun rasterIds(): Set<RasterId> {
+        val out = HashSet<RasterId>()
+        for (l in layers) if (l is RasterLayer) {
+            out += l.rasterId
+            l.mask?.let { out += it.rasterId }
+        }
+        selection?.let { out += it.rasterId }
+        return out
+    }
+
+    /** Content identity for "unsaved changes": ignores selection and the active layer. */
+    fun contentKey(): Document = copy(activeLayerId = null, selection = null)
 
     companion object {
         fun newId(): String = UUID.randomUUID().toString()

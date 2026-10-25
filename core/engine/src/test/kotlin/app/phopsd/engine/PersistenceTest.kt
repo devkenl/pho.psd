@@ -339,7 +339,9 @@ class PersistenceTest {
         assertEquals("mimetype", names.first())
         val m = manifest!!
         assertEquals("phopsd", m.string("format"))
-        assertEquals(1, m.int("formatVersion"))
+        assertEquals(ProjectFormat.FORMAT_VERSION, m.int("formatVersion"))
+        // No masks: still readable by 0.3 (format v1 readers).
+        assertEquals(1, m.int("minReaderVersion"))
         assertEquals(300, m.obj("document").int("dpi"))
         assertTrue(m.array("rasters").all { (it as Json.Obj).string("sha256").length == 64 })
     }

@@ -6,6 +6,7 @@ import app.phopsd.engine.model.ColorProfileInfo
 import app.phopsd.engine.model.Document
 import app.phopsd.engine.model.Layer
 import app.phopsd.engine.model.LayerId
+import app.phopsd.engine.model.LayerMask
 import app.phopsd.engine.model.RasterId
 import app.phopsd.engine.model.RasterLayer
 import app.phopsd.engine.model.RasterLookup
@@ -26,7 +27,7 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 /**
- * The native `.phopsd` project container (format v1).
+ * The native `.phopsd` project container (format v2).
  *
  * A ZIP archive:
  * ```
@@ -43,10 +44,17 @@ import java.util.zip.ZipOutputStream
  * Compatibility: `formatVersion` is the version that wrote the file; `minReaderVersion` is
  * the oldest reader that can load it without losing data. Readers reject files whose
  * `minReaderVersion` exceeds [FORMAT_VERSION]. Older files are upgraded by [migrate].
+ *
+ * History: v1 (0.3) layers, transforms, blend modes. v2 (0.4) adds layer masks
+ * (`"mask": {"raster", "enabled"}` on a layer, mask pixels in the raster table). A v2 file
+ * without masks declares `minReaderVersion` 1 so 0.3 can still open it; with masks it
+ * declares 2, because a v1 reader would silently drop them.
  */
 object ProjectFormat {
-    const val FORMAT_VERSION = 1
+    const val FORMAT_VERSION = 2
     const val MIN_READER_VERSION = 1
+    /** Oldest reader that understands layer masks. */
+    const val MASKS_MIN_READER_VERSION = 2
     const val MIME_TYPE = "application/x-phopsd"
     const val EXTENSION = "phopsd"
     const val MIME_ENTRY = "mimetype"
@@ -56,8 +64,9 @@ object ProjectFormat {
     const val MAX_MANIFEST_BYTES = 16 * 1024 * 1024
     const val MAX_THUMBNAIL_BYTES = 8 * 1024 * 1024
 
-    /** Upgrades an older manifest to the current structure. v1 is the first version. */
+    /** Upgrades an older manifest to the current structure. */
     fun migrate(manifest: Json.Obj, fromVersion: Int): Json.Obj = when (fromVersion) {
+        // v1 → v2 only added optional fields (masks); the structure is unchanged.
         1 -> manifest
         else -> throw ProjectFormatException("Unsupported project format version $fromVersion")
     }
@@ -111,13 +120,18 @@ object ProjectWriter {
         var total = 0L
         val written = LinkedHashSet<RasterId>()
         zip.setLevel(Deflater.NO_COMPRESSION) // PRAS payloads are already deflated
+        val toWrite = ArrayList<Pair<RasterId, String>>()
         for (layer in doc.layers) {
             val rl = layer as? RasterLayer ?: continue
-            if (!written.add(rl.rasterId)) continue
-            val raster = rasters.mips(rl.rasterId)?.base
-                ?: throw ProjectFormatException("Pixel data for layer “${rl.name}” is missing")
+            toWrite += rl.rasterId to "layer “${rl.name}”"
+            rl.mask?.let { toWrite += it.rasterId to "the mask of layer “${rl.name}”" }
+        }
+        for ((rid, what) in toWrite) {
+            if (!written.add(rid)) continue
+            val raster = rasters.mips(rid)?.base
+                ?: throw ProjectFormatException("Pixel data for $what is missing")
             if (isCancelled()) throw InterruptedException("Save cancelled")
-            val path = "${ProjectFormat.RASTER_DIR}${rl.rasterId.value}.pras"
+            val path = "${ProjectFormat.RASTER_DIR}${rid.value}.pras"
             zip.putNextEntry(ZipEntry(path))
             val digest = MessageDigest.getInstance("SHA-256")
             val counting = HashingOutputStream(NonClosingOutputStream(zip), digest)
@@ -126,7 +140,7 @@ object ProjectWriter {
             zip.closeEntry()
             total += counting.count
             table += Json.obj(
-                "id" to Json.str(rl.rasterId.value),
+                "id" to Json.str(rid.value),
                 "path" to Json.str(path),
                 "width" to Json.num(raster.width),
                 "height" to Json.num(raster.height),
@@ -147,7 +161,10 @@ object ProjectWriter {
         val manifest = Json.obj(
             "format" to Json.str("phopsd"),
             "formatVersion" to Json.num(ProjectFormat.FORMAT_VERSION),
-            "minReaderVersion" to Json.num(ProjectFormat.MIN_READER_VERSION),
+            "minReaderVersion" to Json.num(
+                if (doc.layers.any { (it as? RasterLayer)?.mask != null }) ProjectFormat.MASKS_MIN_READER_VERSION
+                else ProjectFormat.MIN_READER_VERSION,
+            ),
             "app" to Json.obj("name" to Json.str("pho.psd"), "version" to Json.str(info.appVersion)),
             "savedAt" to Json.str(Instant.ofEpochMilli(info.savedAtMillis).toString()),
             "document" to documentJson(doc),
@@ -204,6 +221,9 @@ object ProjectWriter {
                     "sourceColorSpace" to Json.str(s.sourceColorSpace),
                     "downsampled" to Json.bool(s.downsampled),
                 )
+            },
+            "mask" to layer.mask?.let { mk ->
+                Json.obj("raster" to Json.str(mk.rasterId.value), "enabled" to Json.bool(mk.enabled))
             },
         )
     }
@@ -371,6 +391,16 @@ object ProjectReader {
                             throw ProjectFormatException("Layer “${l.string("name")}” does not match its pixel data size")
                         }
                         val t = l.obj("transform")
+                        val mask = l.objOrNull("mask")?.let { mj ->
+                            val mid = mj.string("raster")
+                            val mrow = byId[mid] ?: throw ProjectFormatException("The mask of layer “${l.string("name")}” references missing pixel data")
+                            val mr = scan.entries[mrow.path]!!.raster!!
+                            if (mr.width != w || mr.height != h) {
+                                throw ProjectFormatException("The mask of layer “${l.string("name")}” does not match the layer size")
+                            }
+                            rastersOut[RasterId(mid)] = mr
+                            LayerMask(RasterId(mid), enabled = mj.boolOr("enabled", true))
+                        }
                         RasterLayer(
                             id = LayerId(l.string("id")),
                             name = l.string("name"),
@@ -398,6 +428,7 @@ object ProjectReader {
                                     downsampled = s.boolOr("downsampled", false),
                                 )
                             },
+                            mask = mask,
                         )
                     }
                     else -> throw ProjectFormatException(

@@ -26,6 +26,16 @@ enum class Sampling {
  * [outWidth] x [outHeight] pixels. Output pixel (i, j) represents the document point at its
  * centre. `docRect = (0,0,w,h)` with `out = (w,h)` is a 1:1 full-resolution render (export).
  */
+/** Mask visualisation for one layer (editor display only; never used for export). */
+data class MaskDisplay(val layerId: LayerId, val mode: Mode) {
+    enum class Mode {
+        /** Show only the mask as a grayscale image (white = revealed). */
+        Alone,
+        /** Normal composite with concealed areas tinted red (a "rubylith" overlay). */
+        Overlay,
+    }
+}
+
 data class RenderRequest(
     val docRect: RectD,
     val outWidth: Int,
@@ -33,6 +43,7 @@ data class RenderRequest(
     val sampling: Sampling = Sampling.Bilinear,
     /** Premultiplied colour beneath all layers (transparent by default). */
     val background: Int = Pixels.TRANSPARENT,
+    val maskDisplay: MaskDisplay? = null,
 ) {
     init {
         require(outWidth > 0 && outHeight > 0) { "Output must be at least 1x1" }
@@ -121,10 +132,21 @@ class Compositor {
                 acc[k] = bgR; acc[k + 1] = bgG; acc[k + 2] = bgB; acc[k + 3] = bgA
             }
             val docY = request.docRect.top + (j + 0.5) * pxH
-            if (docY >= plans.minY && docY < plans.maxY) {
+            val display = request.maskDisplay
+            val displayPlan = display?.let { d -> plans.list.firstOrNull { it.layerId == d.layerId && it.mask != null } }
+            if (display?.mode == MaskDisplay.Mode.Alone && displayPlan != null) {
+                if (docY >= displayPlan.docBounds.top && docY < displayPlan.docBounds.bottom) {
+                    maskAloneRow(displayPlan, request, docY, pxW, acc)
+                }
+            } else if (docY >= plans.minY && docY < plans.maxY) {
                 for (plan in plans.list) {
                     if (docY < plan.docBounds.top || docY >= plan.docBounds.bottom) continue
                     compositeRow(plan, request, docY, pxW, acc, tmp, blendOut)
+                }
+                if (display?.mode == MaskDisplay.Mode.Overlay && displayPlan != null &&
+                    docY >= displayPlan.docBounds.top && docY < displayPlan.docBounds.bottom
+                ) {
+                    overlayRow(displayPlan, request, docY, pxW, acc)
                 }
             }
             val rowBase = (j - outBaseRow) * w
@@ -160,7 +182,16 @@ class Compositor {
         val mode: BlendMode,
         val nearest: Boolean,
         val docBounds: RectD,
+        /** Mask raster (alpha = reveal), or null. */
+        val mask: TiledRaster?,
+        /** Sampled-level pixel -> mask pixel scale (1 when the mask level matches). */
+        val maskSx: Double,
+        val maskSy: Double,
+        val layerId: LayerId,
     )
+
+    private fun maskAt(plan: LayerPlan, u: Double, v: Double): Float =
+        plan.mask?.let { sampleAlpha(it, u * plan.maskSx, v * plan.maskSy, plan.nearest) } ?: 1f
 
     private class Plans(val list: List<LayerPlan>, val minY: Double, val maxY: Double)
 
@@ -185,6 +216,14 @@ class Compositor {
                     // Level pixel = layer pixel scaled by the actual level/base size ratio.
                     val sx = raster.width.toDouble() / mips.width
                     val sy = raster.height.toDouble() / mips.height
+                    val maskMips = layer.mask?.takeIf { it.enabled }?.let { rasters.mips(it.rasterId) }
+                    // Prefer the mask level matching the layer level; otherwise (e.g. a live
+                    // single-level mask during a stroke) sample the mask's base with scaling.
+                    // A mask must never be silently ignored: that would reveal hidden pixels.
+                    val maskLevel = maskMips?.let { m ->
+                        m.levels.getOrNull(level)?.takeIf { it.width == raster.width && it.height == raster.height }
+                            ?: m.base
+                    }
                     list += LayerPlan(
                         raster = raster,
                         docToLevel = docToLayer.then(Affine.scale(sx, sy)),
@@ -192,6 +231,10 @@ class Compositor {
                         mode = layer.blendMode,
                         nearest = nearest,
                         docBounds = bounds,
+                        mask = maskLevel,
+                        maskSx = maskLevel?.let { it.width.toDouble() / raster.width } ?: 1.0,
+                        maskSy = maskLevel?.let { it.height.toDouble() / raster.height } ?: 1.0,
+                        layerId = layer.id,
                     )
                 }
             }
@@ -236,6 +279,10 @@ class Compositor {
             v += dv
             if (uu < -1.0 || vv < -1.0 || uu > rw + 1.0 || vv > rh + 1.0) continue
             if (plan.nearest) sampleNearest(raster, uu, vv, tmp) else sampleBilinear(raster, uu, vv, tmp)
+            if (plan.mask != null) {
+                val m = maskAt(plan, uu, vv)
+                tmp[0] *= m; tmp[1] *= m; tmp[2] *= m; tmp[3] *= m
+            }
             val sa = tmp[3] * opacity
             if (sa <= 0f) continue
             val sr = tmp[0] * opacity
@@ -275,6 +322,67 @@ class Compositor {
             acc[k + 2] = (1f - ab) * sb + (1f - sa) * acc[k + 2] + both * rb
             acc[k + 3] = sa + ab * (1f - sa)
         }
+    }
+
+    /** Iterates the output columns of one row that fall inside [plan]'s layer. */
+    private inline fun forLayerColumns(plan: LayerPlan, req: RenderRequest, docY: Double, pxW: Double, f: (i: Int, u: Double, v: Double) -> Unit) {
+        val m = plan.docToLevel
+        val w = req.outWidth
+        val iStart = floor((plan.docBounds.left - req.docRect.left) / pxW).toInt().coerceIn(0, w)
+        val iEnd = (floor((plan.docBounds.right - req.docRect.left) / pxW).toInt() + 1).coerceIn(0, w)
+        val firstX = req.docRect.left + (iStart + 0.5) * pxW
+        var u = m.mapX(firstX, docY)
+        var v = m.mapY(firstX, docY)
+        val du = m.a * pxW
+        val dv = m.b * pxW
+        val rw = plan.raster.width
+        val rh = plan.raster.height
+        for (i in iStart until iEnd) {
+            if (u >= 0 && v >= 0 && u < rw && v < rh) f(i, u, v)
+            u += du
+            v += dv
+        }
+    }
+
+    private fun maskAloneRow(plan: LayerPlan, req: RenderRequest, docY: Double, pxW: Double, acc: FloatArray) {
+        if (plan.mask == null) return
+        forLayerColumns(plan, req, docY, pxW) { i, u, v ->
+            val g = maskAt(plan, u, v)
+            val k = i * 4
+            acc[k] = g; acc[k + 1] = g; acc[k + 2] = g; acc[k + 3] = 1f
+        }
+    }
+
+    private fun overlayRow(plan: LayerPlan, req: RenderRequest, docY: Double, pxW: Double, acc: FloatArray) {
+        if (plan.mask == null) return
+        forLayerColumns(plan, req, docY, pxW) { i, u, v ->
+            val a = OVERLAY_ALPHA * (1f - maskAt(plan, u, v))
+            if (a > 0f) {
+                val k = i * 4
+                val inv = 1f - a
+                acc[k] = a + acc[k] * inv
+                acc[k + 1] = acc[k + 1] * inv
+                acc[k + 2] = acc[k + 2] * inv
+                acc[k + 3] = a + acc[k + 3] * inv
+            }
+        }
+    }
+
+    /** Mask value 0..1 at mask pixel coordinates (alpha channel). */
+    private fun sampleAlpha(r: TiledRaster, u: Double, v: Double, nearest: Boolean): Float {
+        if (nearest) return Pixels.alpha(r.pixel(floor(u).toInt(), floor(v).toInt())) / 255f
+        val fx = u - 0.5
+        val fy = v - 0.5
+        val x0 = floor(fx).toInt()
+        val y0 = floor(fy).toInt()
+        val tx = (fx - x0).toFloat()
+        val ty = (fy - y0).toFloat()
+        // Clamp to the edge so masks don't fade out at the layer border.
+        val xa = x0.coerceIn(0, r.width - 1); val xb = (x0 + 1).coerceIn(0, r.width - 1)
+        val ya = y0.coerceIn(0, r.height - 1); val yb = (y0 + 1).coerceIn(0, r.height - 1)
+        val a00 = Pixels.alpha(r.pixel(xa, ya)); val a10 = Pixels.alpha(r.pixel(xb, ya))
+        val a01 = Pixels.alpha(r.pixel(xa, yb)); val a11 = Pixels.alpha(r.pixel(xb, yb))
+        return ((a00 * (1 - tx) + a10 * tx) * (1 - ty) + (a01 * (1 - tx) + a11 * tx) * ty) / 255f
     }
 
     private fun sampleNearest(r: TiledRaster, u: Double, v: Double, out: FloatArray) {
@@ -332,14 +440,29 @@ class Compositor {
             val mips = rasters.mips(layer.rasterId)
             val inv = layer.transform.layerToDocument(layer.width, layer.height).invert()
             if (mips == null || inv == null) 0 else {
-                val u = inv.mapX(docX, docY)
-                val v = inv.mapY(docX, docY)
-                Pixels.alpha(mips.base.pixel(floor(u).toInt(), floor(v).toInt()))
+                val u = floor(inv.mapX(docX, docY)).toInt()
+                val v = floor(inv.mapY(docX, docY)).toInt()
+                val a = Pixels.alpha(mips.base.pixel(u, v))
+                val m = layer.mask?.takeIf { it.enabled }?.let { rasters.mips(it.rasterId)?.base }
+                if (m == null) a else Pixels.mulDiv255(a, Pixels.alpha(m.pixel(u, v)))
             }
         }
     }
 
+    /**
+     * The composite colour (premultiplied ARGB) of the single document pixel containing
+     * ([docX], [docY]) — what the Eyedropper samples.
+     */
+    fun sampleColor(doc: Document, rasters: RasterLookup, docX: Double, docY: Double): Int {
+        val x = floor(docX)
+        val y = floor(docY)
+        val req = RenderRequest(RectD(x, y, x + 1, y + 1), 1, 1, Sampling.Nearest)
+        return render(doc, rasters, req)[0]
+    }
+
     companion object {
+        private const val OVERLAY_ALPHA = 0.5f
+
         /** Document-space axis-aligned bounds of a layer (for overlays and hit areas). */
         fun layerBounds(layer: Layer): RectD = when (layer) {
             is RasterLayer -> layer.transform.layerToDocument(layer.width, layer.height)
