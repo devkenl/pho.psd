@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="pho_background">#0C111A</color>
+    <color name="pho_header">#151D2A</color>
+    <color name="pho_accent">#087CFF</color>
+    <color name="ic_launcher_background">#0C111A</color>
+</resources>

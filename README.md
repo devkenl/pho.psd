@@ -1,0 +1,30 @@
+# pho.psd
+
+A professional, offline image editor for **Android tablets**: layers, true alpha
+compositing, and a desktop-class workspace designed for touch, stylus, keyboard and mouse.
+
+> Status: `0.2.0-dev`, Milestones 0–2 (workspace + image import + raster layers).
+> See **PROJECT_STATUS.md** for what has and hasn't been verified, including the fact that
+> this revision has not yet been built with Gradle or run on a device.
+
+## Build
+Requirements: Android Studio (or the command line) with Android SDK platform 37 and JDK 17+.
+
+```bash
+./gradlew assembleDebug                          # APK at app/build/outputs/apk/debug/
+./gradlew :core:engine:test :core:editor:test    # 74 JVM unit tests
+./gradlew installDebug                           # install on a connected tablet/emulator
+```
+
+## Project map
+| Path | What |
+|---|---|
+| `app/` | Android app: Compose UI, ViewModel, decoding, preview rendering |
+| `core/editor/` | Pure Kotlin editor state machine (commands, tools, undo-aware edits) |
+| `core/engine/` | Pure Kotlin image engine (geometry, tiles, mips, compositor, history) |
+| `docs/` | Product, UI, engine and roadmap specifications (authoritative requirements) |
+| `PROJECT_STATUS.md` / `ARCHITECTURE.md` / `FEATURE_MATRIX.md` | Progress, decisions, real feature status |
+| `tools/` | Icon generator, offline test runner, offline API type-check |
+| `design-reference.png` | Visual reference only (never shipped as app content) |
+
+`CLAUDE.md` holds the standing instructions for Claude Code sessions in this repository.

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The product name is always written exactly as below: lowercase, with the period. -->
+    <string name="app_name" translatable="false">pho.psd</string>
+</resources>
