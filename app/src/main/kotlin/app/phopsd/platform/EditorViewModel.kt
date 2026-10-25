@@ -7,18 +7,25 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import app.phopsd.BuildConfigInfo
 import app.phopsd.editor.EditorController
+import app.phopsd.editor.ExportSettings
 import app.phopsd.editor.NoticeKind
+import app.phopsd.editor.PendingAction
 import app.phopsd.editor.PickPurpose
+import app.phopsd.editor.ProjectLink
+import app.phopsd.editor.Screen
 import app.phopsd.engine.model.Document
 import app.phopsd.engine.model.RasterId
 import app.phopsd.engine.model.RasterLayer
+import app.phopsd.engine.raster.MipChain
 import app.phopsd.engine.raster.Pixels
 import app.phopsd.engine.render.SmallImage
 import app.phopsd.engine.render.Thumbnails
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -62,6 +69,25 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
     private val interacting = MutableStateFlow(false)
     private val thumbCache = ConcurrentHashMap<RasterId, ImageBitmap>()
     private var importJob: Job? = null
+
+    private val storage = ProjectStorage(app)
+    private val autosave = AutosaveStore(app)
+    private val exporter = ImageExporter(app.contentResolver)
+    val recents = RecentProjects(app)
+
+    private val _recovery = MutableStateFlow<AutosaveMeta?>(null)
+    /** Unsaved work found from a previous session (shown on the home screen). */
+    val recovery: StateFlow<AutosaveMeta?> = _recovery.asStateFlow()
+    private var recoveredSessionActive = false
+
+    private var saveJob: Job? = null
+    private var pendingExport: ExportSettings? = null
+
+    /** Startup I/O: must finish before any autosave is written, so leftovers are never overwritten. */
+    private val startup = viewModelScope.async(Dispatchers.IO) {
+        _recovery.value = runCatching { autosave.promoteLeftoverToRecovery() }.getOrNull()
+        recents.load()
+    }
 
     init {
         // Base preview: depends on the document only (plus quality), never on pan/zoom.
@@ -119,6 +145,26 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
                     _thumbs.value = HashMap(thumbCache)
                 }
         }
+        // Autosave: after a pause in editing, and never while nothing changed.
+        viewModelScope.launch {
+            var wasEditing = false
+            state.map { Triple(it.screen, it.history?.current, it.dirty) }.distinctUntilChanged().collectLatest { (screen, doc, dirty) ->
+                startup.await()
+                if (screen != Screen.Editor || doc == null) {
+                    // Closing a document is an explicit decision (unsaved changes were confirmed).
+                    if (wasEditing) withContext(Dispatchers.IO) { autosave.clearCurrent() }
+                    wasEditing = false
+                    return@collectLatest
+                }
+                wasEditing = true
+                if (!dirty) {
+                    withContext(Dispatchers.IO) { autosave.clearCurrent() }
+                    return@collectLatest
+                }
+                delay(AUTOSAVE_DELAY_MS)
+                autosaveNow()
+            }
+        }
         // Channel thumbnails from the composite, debounced.
         viewModelScope.launch {
             state.map { it.history?.current }.distinctUntilChanged().collectLatest { doc ->
@@ -163,6 +209,174 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ------------------------------------------------------------ save / open / export
+
+    /** Result of the Save As location picker (null = cancelled). */
+    fun onSaveLocationPicked(uri: Uri?) {
+        if (uri == null) {
+            controller.saveCancelled()
+            return
+        }
+        storage.persistAccess(uri, write = true)
+        val name = storage.displayName(uri) ?: uri.lastPathSegment ?: "Untitled.phopsd"
+        saveProject(ProjectLink(uri.toString(), name))
+    }
+
+    fun saveProject(link: ProjectLink) {
+        if (saveJob?.isActive == true) return
+        val snap = controller.snapshotForSave() ?: return
+        controller.markSaving()
+        saveJob = viewModelScope.launch {
+            try {
+                val now = System.currentTimeMillis()
+                val thumb = withContext(Dispatchers.Default) { ImageExporter.thumbnailPng(snap.document, snap) }
+                storage.save(snap, Uri.parse(link.uri), thumb, BuildConfigInfo.VERSION_NAME, now)
+                controller.markSaved(link, snap.document, now)
+                finishRecoveryIfAny()
+                recents.record(link.uri, link.displayName, snap.document.width, snap.document.height, now, thumb)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: StorageException) {
+                controller.markSaveFailed(e.message ?: "unknown error")
+            } catch (e: Exception) {
+                controller.markSaveFailed(e.message ?: e.javaClass.simpleName)
+            }
+        }
+    }
+
+    /** Result of the Open Project picker. */
+    fun onProjectPicked(uri: Uri?) {
+        if (uri == null) return
+        storage.persistAccess(uri, write = true)
+        openProject(uri.toString())
+    }
+
+    fun openProject(uriString: String) {
+        val uri = Uri.parse(uriString)
+        importJob?.cancel()
+        importJob = viewModelScope.launch {
+            controller.setBusy("Opening project…")
+            try {
+                val loaded = storage.open(uri)
+                val mips = withContext(Dispatchers.Default) { loaded.rasters.mapValues { MipChain.build(it.value) } }
+                thumbCache.clear()
+                val name = storage.displayName(uri) ?: "${loaded.document.name}.phopsd"
+                controller.loadProject(loaded.document, mips, ProjectLink(uriString, name), loaded.warnings)
+                recents.record(uriString, name, loaded.document.width, loaded.document.height, System.currentTimeMillis(), loaded.thumbnailPng)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: StorageException) {
+                controller.notice("Could not open the project: ${e.message}", NoticeKind.Error)
+            } catch (e: Exception) {
+                controller.notice("Could not open the project: ${e.message ?: e.javaClass.simpleName}", NoticeKind.Error)
+            } finally {
+                controller.setBusy(null)
+            }
+        }
+    }
+
+    /** Opens a recent project, asking first if the current document has unsaved changes. */
+    fun openRecent(uri: String) = controller.requestOrConfirm(PendingAction.OpenRecent(uri))
+
+    fun removeRecent(uri: String) {
+        viewModelScope.launch { recents.remove(uri) }
+    }
+
+    /** Called when an export location picker is about to be shown. */
+    fun prepareExport(settings: ExportSettings) {
+        pendingExport = settings
+    }
+
+    fun onExportLocationPicked(uri: Uri?) {
+        val settings = pendingExport ?: return
+        pendingExport = null
+        if (uri == null) return
+        val snap = controller.snapshotForSave() ?: return
+        viewModelScope.launch {
+            controller.setBusy("Exporting ${settings.format.label}…")
+            try {
+                val r = exporter.export(snap, settings, uri)
+                val name = storage.displayName(uri) ?: "image.${settings.format.extension}"
+                controller.notice("Exported “$name” (${r.width} × ${r.height} px)")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: StorageException) {
+                controller.notice("Export failed: ${e.message}", NoticeKind.Error)
+            } catch (e: Exception) {
+                controller.notice("Export failed: ${e.message ?: e.javaClass.simpleName}", NoticeKind.Error)
+            } finally {
+                controller.setBusy(null)
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ autosave & recovery
+
+    /** Activity stopped (home button, task switch): autosave right away if there is unsaved work. */
+    fun onAppBackgrounded() {
+        if (controller.state.value.dirty && controller.state.value.screen == Screen.Editor) {
+            viewModelScope.launch {
+                startup.await()
+                autosaveNow()
+            }
+        }
+    }
+
+    private suspend fun autosaveNow() {
+        val s = controller.state.value
+        if (saveJob?.isActive == true) return
+        val snap = controller.snapshotForSave() ?: return
+        val now = System.currentTimeMillis()
+        try {
+            autosave.write(
+                snap,
+                AutosaveMeta(snap.document.name, snap.document.width, snap.document.height, now, s.project),
+                BuildConfigInfo.VERSION_NAME,
+            )
+            controller.markAutosaved(now)
+            finishRecoveryIfAny()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            controller.notice("Autosave failed: ${e.message ?: e.javaClass.simpleName}", NoticeKind.Warning)
+        }
+    }
+
+    fun recoverAutosave() {
+        val meta = _recovery.value ?: return
+        importJob?.cancel()
+        importJob = viewModelScope.launch {
+            controller.setBusy("Recovering “${meta.documentName}”…")
+            try {
+                val loaded = autosave.loadRecovery()
+                val mips = withContext(Dispatchers.Default) { loaded.rasters.mapValues { MipChain.build(it.value) } }
+                thumbCache.clear()
+                controller.loadProject(loaded.document, mips, meta.project, loaded.warnings, recovered = true)
+                _recovery.value = null
+                // The recovery file is kept until the recovered work is autosaved or saved again.
+                recoveredSessionActive = true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                controller.notice("The autosave could not be recovered: ${e.message ?: e.javaClass.simpleName}", NoticeKind.Error)
+            } finally {
+                controller.setBusy(null)
+            }
+        }
+    }
+
+    fun discardAutosave() {
+        _recovery.value = null
+        viewModelScope.launch(Dispatchers.IO) { autosave.discardRecovery() }
+    }
+
+    private fun finishRecoveryIfAny() {
+        if (recoveredSessionActive) {
+            recoveredSessionActive = false
+            autosave.discardRecovery()
+        }
+    }
+
     fun cancelImport() {
         importJob?.cancel()
         controller.setBusy(null)
@@ -180,6 +394,7 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         private const val MAX_BASE_EDGE = 3072
+        private const val AUTOSAVE_DELAY_MS = 30_000L
         private const val INTERACTIVE_EDGE = 1280
         private const val BASE_OVERSAMPLE = 1.25
         private const val DETAIL_SETTLE_MS = 140L

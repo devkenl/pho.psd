@@ -3,6 +3,7 @@ package app.phopsd.ui
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
@@ -37,7 +38,9 @@ object KeyShortcuts {
             ctrl && e.key == Key.Y -> CommandId.Redo
             ctrl && shift && e.key == Key.N -> CommandId.NewLayer
             ctrl && e.key == Key.N -> CommandId.NewDocument
+            ctrl && shift && e.key == Key.O -> CommandId.OpenProject
             ctrl && e.key == Key.O -> CommandId.OpenImage
+            ctrl && shift && e.isAltPressed && e.key == Key.W -> CommandId.Export
             ctrl && shift && e.key == Key.P -> CommandId.PlaceImage
             ctrl && shift && e.key == Key.S -> CommandId.SaveAs
             ctrl && e.key == Key.S -> CommandId.Save
@@ -104,5 +107,5 @@ object KeyShortcuts {
         return false
     }
 
-    private val HOME_COMMANDS = setOf(CommandId.NewDocument, CommandId.OpenImage)
+    private val HOME_COMMANDS = setOf(CommandId.NewDocument, CommandId.OpenImage, CommandId.OpenProject)
 }

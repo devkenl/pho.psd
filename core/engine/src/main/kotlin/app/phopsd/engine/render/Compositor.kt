@@ -71,6 +71,37 @@ class Compositor {
         isCancelled: () -> Boolean = { false },
     ): Boolean {
         require(out.size >= request.outWidth * request.outHeight) { "Output buffer too small" }
+        return renderInto(doc, rasters, request, out, rowFrom, rowTo, outBaseRow = 0, isCancelled)
+    }
+
+    /**
+     * Renders rows [rowFrom, rowTo) of [request] into a band buffer: row j is written at
+     * index (j - rowFrom) * outWidth. Used by export to stream bands of any size.
+     */
+    fun renderRows(
+        doc: Document,
+        rasters: RasterLookup,
+        request: RenderRequest,
+        band: IntArray,
+        rowFrom: Int,
+        rowTo: Int,
+        isCancelled: () -> Boolean = { false },
+    ): Boolean {
+        require(rowFrom in 0..rowTo && rowTo <= request.outHeight) { "Invalid row range" }
+        require(band.size >= request.outWidth * (rowTo - rowFrom)) { "Band buffer too small" }
+        return renderInto(doc, rasters, request, band, rowFrom, rowTo, outBaseRow = rowFrom, isCancelled)
+    }
+
+    private fun renderInto(
+        doc: Document,
+        rasters: RasterLookup,
+        request: RenderRequest,
+        out: IntArray,
+        rowFrom: Int,
+        rowTo: Int,
+        outBaseRow: Int,
+        isCancelled: () -> Boolean,
+    ): Boolean {
         val plans = planLayers(doc, rasters, request)
         val w = request.outWidth
         val acc = FloatArray(w * 4)
@@ -96,7 +127,7 @@ class Compositor {
                     compositeRow(plan, request, docY, pxW, acc, tmp, blendOut)
                 }
             }
-            val rowBase = j * w
+            val rowBase = (j - outBaseRow) * w
             for (i in 0 until w) {
                 val k = i * 4
                 val a = acc[k + 3].coerceIn(0f, 1f)

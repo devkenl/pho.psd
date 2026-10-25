@@ -102,6 +102,24 @@ class TiledRaster(
         }
     }
 
+    /**
+     * Backing array of tile ([tx], [ty]) or null when the tile was never written (reads as
+     * [fill]). Arrays are tileSize² premultiplied pixels, row-major; edge tiles are padded.
+     * Callers must treat the array as read-only (serialization, copy-on-write derivation).
+     */
+    fun tileOrNull(tx: Int, ty: Int): IntArray? {
+        require(tx in 0 until tilesX && ty in 0 until tilesY) { "Tile ($tx,$ty) out of range" }
+        return tiles[ty * tilesX + tx]
+    }
+
+    /** Installs a complete tile before the raster is frozen (deserialization). */
+    fun putTile(tx: Int, ty: Int, data: IntArray) {
+        checkWritable()
+        require(tx in 0 until tilesX && ty in 0 until tilesY) { "Tile ($tx,$ty) out of range" }
+        require(data.size == tileSize * tileSize) { "Tile must hold ${tileSize * tileSize} pixels" }
+        tiles[ty * tilesX + tx] = data
+    }
+
     /** Number of tiles that hold real pixel memory. */
     val allocatedTileCount: Int get() = tiles.count { it != null }
 

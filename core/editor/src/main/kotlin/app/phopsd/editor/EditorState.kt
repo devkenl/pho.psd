@@ -1,6 +1,7 @@
 package app.phopsd.editor
 
 import app.phopsd.engine.edit.History
+import app.phopsd.engine.geometry.AngleSnap
 import app.phopsd.engine.geometry.LayerTransform
 import app.phopsd.engine.geometry.Viewport
 import app.phopsd.engine.model.Document
@@ -30,17 +31,60 @@ enum class PickPurpose { OpenAsDocument, PlaceAsLayer }
 /** Which system picker to use. */
 enum class PickSource { Documents, Photos }
 
-/** One-shot requests the platform layer must fulfil (pickers need an Activity). */
-sealed interface EditorEffect {
-    data class PickImage(val purpose: PickPurpose, val source: PickSource) : EditorEffect
+/** Where the current document is saved (a SAF document URI) and how it is called. */
+data class ProjectLink(val uri: String, val displayName: String)
+
+enum class ExportFormat(val label: String, val extension: String, val mimeType: String, val supportsAlpha: Boolean) {
+    Png("PNG", "png", "image/png", true),
+    Jpeg("JPEG", "jpg", "image/jpeg", false),
 }
 
-/** Actions deferred behind a "discard unsaved changes?" confirmation. */
+data class ExportSettings(
+    val format: ExportFormat = ExportFormat.Png,
+    /** JPEG quality 1..100 (ignored for PNG). */
+    val quality: Int = 92,
+    /** Fraction of the document size, (0, 1]. */
+    val scale: Double = 1.0,
+) {
+    init {
+        require(quality in 1..100)
+        require(scale > 0.0 && scale <= 1.0)
+    }
+}
+
+/** Progress of the most recent save. */
+sealed interface SaveState {
+    data object Idle : SaveState
+    data object Saving : SaveState
+    data class Saved(val atMillis: Long) : SaveState
+    data class Failed(val message: String) : SaveState
+}
+
+/** One-shot requests the platform layer must fulfil (pickers and file I/O need an Activity/Context). */
+sealed interface EditorEffect {
+    data class PickImage(val purpose: PickPurpose, val source: PickSource) : EditorEffect
+    data object PickProjectToOpen : EditorEffect
+    data class OpenProjectUri(val uri: String) : EditorEffect
+    data class PickSaveLocation(val suggestedFileName: String) : EditorEffect
+    data class SaveProject(val link: ProjectLink) : EditorEffect
+    data class PickExportLocation(val suggestedFileName: String, val settings: ExportSettings) : EditorEffect
+}
+
+/** Actions deferred behind a "discard unsaved changes?" confirmation (or until a save completes). */
 sealed interface PendingAction {
     data object Close : PendingAction
     data class Pick(val source: PickSource) : PendingAction
     data object NewDocument : PendingAction
+    data object OpenProject : PendingAction
+    /** Open a specific recent project (URI) after confirmation. */
+    data class OpenRecent(val uri: String) : PendingAction
 }
+
+/** What a two-finger gesture transforms while the Move tool is active. */
+enum class TwoFingerTarget(val label: String) { View("View"), Layer("Layer") }
+
+/** Live readout while rotating with two fingers. */
+data class RotationHud(val degrees: Double, val snapped: Boolean, val target: TwoFingerTarget)
 
 /** Numeric fields that accept precise entry (double-tap a value). */
 sealed interface NumericTarget {
@@ -80,6 +124,8 @@ sealed interface EditorDialog {
     data object Diagnostics : EditorDialog
     data class ConfirmDiscard(val action: PendingAction) : EditorDialog
     data class NumericEntry(val target: NumericTarget, val current: Double) : EditorDialog
+    data class Export(val settings: ExportSettings) : EditorDialog
+    data object Recents : EditorDialog
 }
 
 /** A transform being dragged on canvas; committed to history as one step on release. */
@@ -118,11 +164,23 @@ data class EditorState(
     val dialog: EditorDialog? = null,
     val notice: Notice? = null,
     val busy: String? = null,
-    /** True once the document differs from what was created/opened (nothing is saved yet). */
+    /** True when the document differs from its last saved (or freshly created/opened) content. */
     val dirty: Boolean = false,
     val lastEditAtMillis: Long? = null,
     /** Space bar held: canvas temporarily behaves like the Hand tool. */
     val spacePanning: Boolean = false,
+    /** Where Save writes; null until the document has been saved or opened as a project. */
+    val project: ProjectLink? = null,
+    /** Content at the last save/open; null means "never saved, treat as changed" (e.g. recovered). */
+    val savedSnapshot: Document? = null,
+    val saveState: SaveState = SaveState.Idle,
+    val autosavedAtMillis: Long? = null,
+    /** Runs once the in-flight save succeeds (e.g. "save, then close"). */
+    val afterSave: PendingAction? = null,
+    val lastExport: ExportSettings = ExportSettings(),
+    val rotationSnap: AngleSnap = AngleSnap(stepDegrees = 45.0, thresholdDegrees = AngleSnap.thresholdFor(45.0)),
+    val twoFingerTarget: TwoFingerTarget = TwoFingerTarget.View,
+    val rotationHud: RotationHud? = null,
 ) {
     /** Document as displayed, including an in-progress drag. */
     val document: Document? get() = history?.current?.let { d -> live?.applyTo(d) ?: d }

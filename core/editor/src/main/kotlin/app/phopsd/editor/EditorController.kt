@@ -3,14 +3,19 @@ package app.phopsd.editor
 import app.phopsd.engine.edit.DocumentEdits
 import app.phopsd.engine.edit.EditResult
 import app.phopsd.engine.edit.History
+import app.phopsd.engine.geometry.AngleSnap
+import app.phopsd.engine.geometry.LayerPinch
 import app.phopsd.engine.geometry.LayerTransform
+import app.phopsd.engine.geometry.PointD
 import app.phopsd.engine.geometry.Viewport
 import app.phopsd.engine.model.BlendMode
 import app.phopsd.engine.model.Document
 import app.phopsd.engine.model.DocumentFactory
 import app.phopsd.engine.model.LayerId
 import app.phopsd.engine.model.NewDocumentSpec
+import app.phopsd.engine.model.RasterId
 import app.phopsd.engine.model.RasterLayer
+import app.phopsd.engine.model.RasterLookup
 import app.phopsd.engine.model.RasterStore
 import app.phopsd.engine.model.SourceInfo
 import app.phopsd.engine.raster.MipChain
@@ -23,6 +28,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -55,7 +61,7 @@ class EditorController(
         spec.validate()?.let { notice(it, NoticeKind.Error); return false }
         rasters.clear()
         val doc = DocumentFactory.create(spec, rasters)
-        startSession(doc, "New Document")
+        startSession(doc, "New Document", savedSnapshot = doc, project = null)
         return true
     }
 
@@ -63,7 +69,7 @@ class EditorController(
     fun openImage(name: String, mips: MipChain, source: SourceInfo) {
         rasters.clear()
         val doc = DocumentFactory.fromImage(name, mips, source, rasters)
-        startSession(doc, "Open")
+        startSession(doc, "Open", savedSnapshot = doc, project = null)
         if (source.downsampled) {
             notice(
                 "“${source.displayName}” is ${source.originalWidth}×${source.originalHeight}; it was opened at " +
@@ -86,19 +92,39 @@ class EditorController(
         }
     }
 
+    /**
+     * Opens a loaded `.phopsd` project (or a recovered autosave). Pixel data arrives as
+     * prepared mip chains so the heavy work stays on the caller's background thread.
+     *
+     * @param recovered true for crash/autosave recovery: the content is treated as unsaved.
+     */
+    fun loadProject(doc: Document, mips: Map<RasterId, MipChain>, link: ProjectLink?, warnings: List<String> = emptyList(), recovered: Boolean = false) {
+        rasters.clear()
+        for ((id, m) in mips) rasters.put(id, m)
+        startSession(doc, if (recovered) "Recovered" else "Open Project", savedSnapshot = if (recovered) null else doc, project = link)
+        when {
+            warnings.isNotEmpty() -> notice(warnings.joinToString(" "), NoticeKind.Warning)
+            recovered -> notice("Recovered “${doc.name}” from the last autosave. Save it to keep it.", NoticeKind.Warning)
+        }
+    }
+
     fun closeDocument() {
         rasters.clear()
+        pinch = null
         _state.update {
             it.copy(
                 screen = Screen.Home, history = null, live = null, viewport = null,
                 dialog = null, dirty = false, lastEditAtMillis = null, busy = null,
+                project = null, savedSnapshot = null, saveState = SaveState.Idle, autosavedAtMillis = null,
+                afterSave = null, rotationHud = null,
             )
         }
     }
 
-    private fun startSession(doc: Document, label: String) {
+    private fun startSession(doc: Document, label: String, savedSnapshot: Document?, project: ProjectLink?) {
         val vs = viewSize
         val vp = vs?.let { Viewport(it.first, it.second, doc.width, doc.height).fitToView() }
+        pinch = null
         _state.update {
             it.copy(
                 screen = Screen.Editor,
@@ -106,12 +132,25 @@ class EditorController(
                 live = null,
                 viewport = vp,
                 dialog = null,
-                dirty = false,
+                dirty = dirtyFor(doc, savedSnapshot),
                 lastEditAtMillis = null,
                 busy = null,
                 tool = if (it.tool.availability.isEnabled) it.tool else Tool.Move,
+                project = project,
+                savedSnapshot = savedSnapshot,
+                saveState = SaveState.Idle,
+                autosavedAtMillis = null,
+                afterSave = null,
+                rotationHud = null,
             )
         }
+    }
+
+    /** Selection changes are not content changes; everything else in the document is. */
+    private fun dirtyFor(current: Document?, saved: Document?): Boolean = when {
+        current == null -> false
+        saved == null -> true
+        else -> current.copy(activeLayerId = null) != saved.copy(activeLayerId = null)
     }
 
     fun setBusy(message: String?) = _state.update { it.copy(busy = message) }
@@ -134,9 +173,30 @@ class EditorController(
         dismissDialog()
         when (action) {
             PendingAction.Close -> closeDocument()
+            else -> runPending(action)
+        }
+    }
+
+    /** "Save, then continue": saves now and performs [action] once the save succeeds. */
+    fun saveThen(action: PendingAction) {
+        dismissDialog()
+        _state.update { it.copy(afterSave = action) }
+        dispatch(CommandId.Save)
+    }
+
+    private fun runPending(action: PendingAction) {
+        when (action) {
+            PendingAction.Close -> closeDocument()
             is PendingAction.Pick -> _effects.tryEmit(EditorEffect.PickImage(PickPurpose.OpenAsDocument, action.source))
             PendingAction.NewDocument -> showDialog(EditorDialog.NewDocument)
+            PendingAction.OpenProject -> _effects.tryEmit(EditorEffect.PickProjectToOpen)
+            is PendingAction.OpenRecent -> _effects.tryEmit(EditorEffect.OpenProjectUri(action.uri))
         }
+    }
+
+    /** Asks before discarding unsaved changes; otherwise runs [action] immediately. */
+    fun requestOrConfirm(action: PendingAction) {
+        if (state.value.dirty) showDialog(EditorDialog.ConfirmDiscard(action)) else runPending(action)
     }
 
     // ---------------------------------------------------------------- commands
@@ -192,6 +252,19 @@ class EditorController(
             CommandId.ToggleLayerLock,
             -> needLayer()
 
+            CommandId.Save -> when {
+                doc == null -> noDoc
+                s.saveState == SaveState.Saving -> Availability.Blocked("A save is already in progress")
+                !s.dirty && s.project != null -> Availability.Blocked("No unsaved changes")
+                else -> Availability.Enabled
+            }
+            CommandId.SaveAs, CommandId.Export -> when {
+                doc == null -> noDoc
+                s.saveState == SaveState.Saving -> Availability.Blocked("A save is already in progress")
+                else -> Availability.Enabled
+            }
+            CommandId.OpenProject, CommandId.Recent -> Availability.Enabled
+
             CommandId.ResetViewRotation -> when {
                 doc == null -> noDoc
                 (s.viewport?.rotationDegrees ?: 0.0) == 0.0 -> Availability.Blocked("View is not rotated")
@@ -221,6 +294,18 @@ class EditorController(
             CommandId.OpenFromPhotos -> requestOpen(PickSource.Photos)
             CommandId.PlaceImage -> _effects.tryEmit(EditorEffect.PickImage(PickPurpose.PlaceAsLayer, PickSource.Documents))
             CommandId.DocumentInfo -> showDialog(EditorDialog.DocumentInfo)
+            CommandId.Save -> {
+                val link = s.project
+                if (link != null) {
+                    _effects.tryEmit(EditorEffect.SaveProject(link))
+                } else {
+                    _effects.tryEmit(EditorEffect.PickSaveLocation(suggestedFileName(doc!!)))
+                }
+            }
+            CommandId.SaveAs -> _effects.tryEmit(EditorEffect.PickSaveLocation(suggestedFileName(doc!!)))
+            CommandId.OpenProject -> requestOrConfirm(PendingAction.OpenProject)
+            CommandId.Recent -> showDialog(EditorDialog.Recents)
+            CommandId.Export -> showDialog(EditorDialog.Export(s.lastExport))
             CommandId.CloseDocument ->
                 if (s.dirty) showDialog(EditorDialog.ConfirmDiscard(PendingAction.Close)) else closeDocument()
 
@@ -287,6 +372,12 @@ class EditorController(
         }
     }
 
+    private fun safeBaseName(doc: Document): String =
+        doc.name.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim().ifEmpty { "Untitled" }
+
+    private fun suggestedFileName(doc: Document): String =
+        "${safeBaseName(doc)}.${app.phopsd.engine.io.ProjectFormat.EXTENSION}"
+
     private fun requestOpen(source: PickSource) {
         if (state.value.dirty) showDialog(EditorDialog.ConfirmDiscard(PendingAction.Pick(source)))
         else _effects.tryEmit(EditorEffect.PickImage(PickPurpose.OpenAsDocument, source))
@@ -298,7 +389,7 @@ class EditorController(
         val h = state.value.history ?: return
         if (!h.canUndo) return
         val label = h.undoLabel
-        _state.update { it.copy(history = h.undo(), live = null, dirty = true, lastEditAtMillis = clock()) }
+        _state.update { it.copy(history = h.undo(), live = null, lastEditAtMillis = clock()).withDirty() }
         notice("Undo $label")
     }
 
@@ -306,13 +397,13 @@ class EditorController(
         val h = state.value.history ?: return
         if (!h.canRedo) return
         val label = h.redoLabel
-        _state.update { it.copy(history = h.redo(), live = null, dirty = true, lastEditAtMillis = clock()) }
+        _state.update { it.copy(history = h.redo(), live = null, lastEditAtMillis = clock()).withDirty() }
         notice("Redo $label")
     }
 
     fun jumpToHistory(index: Int) = _state.update {
         val h = it.history ?: return@update it
-        if (index == h.index) it else it.copy(history = h.jumpTo(index), live = null, dirty = true, lastEditAtMillis = clock())
+        if (index == h.index) it else it.copy(history = h.jumpTo(index), live = null, lastEditAtMillis = clock()).withDirty()
     }
 
     /** Ends a continuous edit (slider release): the next change starts a new undo step. */
@@ -331,13 +422,15 @@ class EditorController(
             is EditResult.Applied -> {
                 _state.update { s ->
                     val h = s.history ?: return@update s
-                    s.copy(history = h.push(label, result.document, coalesce), dirty = true, lastEditAtMillis = clock())
+                    s.copy(history = h.push(label, result.document, coalesce), lastEditAtMillis = clock()).withDirty()
                 }
                 state.value.history?.let { rasters.retainOnly(it.referencedRasters()) }
                 return true
             }
         }
     }
+
+    private fun EditorState.withDirty(): EditorState = copy(dirty = dirtyFor(history?.current, savedSnapshot))
 
     /** Applies a change that is not an undo step (layer selection). */
     private fun replaceCurrent(result: EditResult) {
@@ -524,14 +617,166 @@ class EditorController(
 
     fun rotateViewAt(focusX: Double, focusY: Double, deltaDegrees: Double) = updateViewport { it.rotateAt(focusX, focusY, deltaDegrees) }
 
-    /** Combined pinch gesture: pan, then zoom and rotate about the centroid. */
-    fun transformView(centroidX: Double, centroidY: Double, panX: Double, panY: Double, zoom: Double, rotationDegrees: Double) =
-        updateViewport { vp ->
-            var v = vp.panByScreen(panX, panY)
-            if (zoom != 1.0) v = v.zoomAt(centroidX, centroidY, zoom)
-            if (rotationDegrees != 0.0) v = v.rotateAt(centroidX, centroidY, rotationDegrees)
-            v
+    // ---------------------------------------------------------------- two-finger gestures
+
+    private sealed interface Pinch {
+        class View(val startRotation: Double) : Pinch {
+            var raw = 0.0
+            var rotating = false
         }
+
+        class Layer(val layerId: LayerId, val start: LayerTransform, val anchor: PointD) : Pinch {
+            var scale = 1.0
+            var raw = 0.0
+            var rotating = false
+        }
+    }
+
+    private var pinch: Pinch? = null
+
+    fun setRotationSnapStep(stepDegrees: Double?) = _state.update {
+        it.copy(
+            rotationSnap = if (stepDegrees == null) it.rotationSnap.copy(enabled = false)
+            else AngleSnap(enabled = true, stepDegrees = stepDegrees, thresholdDegrees = AngleSnap.thresholdFor(stepDegrees)),
+        )
+    }
+
+    fun setTwoFingerTarget(target: TwoFingerTarget) = _state.update { it.copy(twoFingerTarget = target) }
+
+    /**
+     * Second finger down. With the Move tool set to transform the layer, two fingers move,
+     * scale and rotate the active layer; otherwise they pan/zoom/rotate the view.
+     */
+    fun beginPinch(centroidX: Double, centroidY: Double): TwoFingerTarget {
+        val s = state.value
+        val vp = s.viewport
+        val doc = s.history?.current
+        val layer = doc?.activeLayer as? RasterLayer
+        if (s.tool == Tool.Move && !s.spacePanning && s.twoFingerTarget == TwoFingerTarget.Layer && vp != null && layer != null) {
+            if (layer.locked) {
+                notice("“${layer.name}” is locked", NoticeKind.Warning)
+            } else {
+                val anchor = vp.toDocument(centroidX, centroidY)
+                pinch = Pinch.Layer(layer.id, layer.transform, anchor)
+                _state.update { it.copy(live = LiveTransform(layer.id, layer.transform, layer.transform, anchor.x, anchor.y)) }
+                return TwoFingerTarget.Layer
+            }
+        }
+        pinch = Pinch.View(vp?.rotationDegrees ?: 0.0)
+        return TwoFingerTarget.View
+    }
+
+    /** Incremental pinch update: [rotationDelta] in degrees since the previous event. */
+    fun updatePinch(centroidX: Double, centroidY: Double, panX: Double, panY: Double, zoom: Double, rotationDelta: Double) {
+        val snap = state.value.rotationSnap
+        when (val p = pinch ?: beginPinch(centroidX, centroidY).let { pinch!! }) {
+            is Pinch.View -> {
+                p.raw += rotationDelta
+                if (!p.rotating && abs(p.raw) > VIEW_ROTATION_THRESHOLD_DEG) p.rotating = true
+                val rawAngle = p.startRotation + p.raw
+                val target = if (p.rotating) snap.target(rawAngle) else null
+                val desired = target ?: rawAngle
+                _state.update { s ->
+                    val vp = s.viewport ?: return@update s
+                    var v = vp.panByScreen(panX, panY)
+                    if (zoom != 1.0) v = v.zoomAt(centroidX, centroidY, zoom)
+                    if (p.rotating) {
+                        val delta = Viewport.normalizeDegrees(desired - v.rotationDegrees)
+                        if (delta != 0.0) v = v.rotateAt(centroidX, centroidY, delta)
+                    }
+                    s.copy(
+                        viewport = v,
+                        rotationHud = if (p.rotating) RotationHud(Viewport.normalizeDegrees(desired), target != null, TwoFingerTarget.View) else null,
+                    )
+                }
+            }
+            is Pinch.Layer -> {
+                p.scale *= zoom
+                p.raw += rotationDelta
+                if (!p.rotating && abs(p.raw) > LAYER_ROTATION_THRESHOLD_DEG) p.rotating = true
+                val rawAngle = p.start.rotationDegrees + if (p.rotating) p.raw else 0.0
+                val target = if (p.rotating) snap.target(rawAngle) else null
+                val desired = target ?: rawAngle
+                val vp = state.value.viewport ?: return
+                val centroid = vp.toDocument(centroidX, centroidY)
+                val t = LayerPinch.apply(p.start, p.anchor, centroid, p.scale, desired - p.start.rotationDegrees)
+                _state.update {
+                    it.copy(
+                        live = LiveTransform(p.layerId, p.start, t, p.anchor.x, p.anchor.y),
+                        rotationHud = if (p.rotating) RotationHud(Viewport.normalizeDegrees(desired), target != null, TwoFingerTarget.Layer) else null,
+                    )
+                }
+            }
+        }
+    }
+
+    /** All fingers lifted: a layer pinch becomes one undo step. */
+    fun endPinch() {
+        val p = pinch
+        pinch = null
+        _state.update { it.copy(rotationHud = null) }
+        if (p is Pinch.Layer) {
+            val live = state.value.live
+            _state.update { it.copy(live = null) }
+            if (live == null || live.current == live.start) return
+            val doc = state.value.history?.current ?: return
+            commit("Transform Layer", DocumentEdits.setTransform(doc, live.layerId, live.current))
+        }
+    }
+
+    fun cancelPinch() {
+        val p = pinch
+        pinch = null
+        _state.update { if (p is Pinch.Layer) it.copy(live = null, rotationHud = null) else it.copy(rotationHud = null) }
+    }
+
+    // ---------------------------------------------------------------- saving & export
+
+    /** Immutable state to persist: the document plus the exact pixel data it references. */
+    class SaveSnapshot(val document: Document, val rasters: RasterLookup)
+
+    /**
+     * Captures what to save. Raster references are copied now, so the save stays consistent
+     * even if the user keeps editing (or history releases rasters) while it runs.
+     */
+    fun snapshotForSave(): SaveSnapshot? {
+        val doc = state.value.history?.current ?: return null
+        val map = HashMap<RasterId, MipChain>()
+        for (id in doc.rasterIds()) map[id] = rasters.mips(id) ?: return null
+        return SaveSnapshot(doc) { id -> map[id] }
+    }
+
+    fun markSaving() = _state.update { it.copy(saveState = SaveState.Saving) }
+
+    /** A save of [savedDocument] to [link] completed and was verified. */
+    fun markSaved(link: ProjectLink, savedDocument: Document, atMillis: Long) {
+        _state.update {
+            it.copy(project = link, savedSnapshot = savedDocument, saveState = SaveState.Saved(atMillis)).withDirty()
+        }
+        notice("Saved “${link.displayName}”")
+        val next = state.value.afterSave
+        if (next != null) {
+            _state.update { it.copy(afterSave = null) }
+            runPending(next)
+        }
+    }
+
+    fun markSaveFailed(message: String) {
+        _state.update { it.copy(saveState = SaveState.Failed(message), afterSave = null) }
+        notice("Save failed: $message. Your previous file was left unchanged.", NoticeKind.Error)
+    }
+
+    /** The save location picker was dismissed. */
+    fun saveCancelled() = _state.update { it.copy(afterSave = null) }
+
+    fun markAutosaved(atMillis: Long) = _state.update { it.copy(autosavedAtMillis = atMillis) }
+
+    /** Confirms the Export dialog; the platform then asks where to write the file. */
+    fun confirmExport(settings: ExportSettings) {
+        val doc = state.value.document ?: return
+        _state.update { it.copy(lastExport = settings, dialog = null) }
+        _effects.tryEmit(EditorEffect.PickExportLocation("${safeBaseName(doc)}.${settings.format.extension}", settings))
+    }
 
     private inline fun updateViewport(crossinline f: (Viewport) -> Viewport) =
         _state.update { s -> s.viewport?.let { s.copy(viewport = f(it)) } ?: s }
@@ -563,3 +808,7 @@ class EditorController(
 }
 
 data class DocumentStats(val layerCount: Int, val rasterCount: Int, val rasterBytes: Long, val historyEntries: Int)
+
+/** Two-finger rotation starts only after a deliberate twist, so pinch-zoom never tilts the view. */
+const val VIEW_ROTATION_THRESHOLD_DEG = 12.0
+const val LAYER_ROTATION_THRESHOLD_DEG = 6.0

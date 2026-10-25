@@ -5,8 +5,8 @@
 A professional, offline image editor for **Android tablets**: layers, true alpha
 compositing, and a desktop-class workspace designed for touch, stylus, keyboard and mouse.
 
-> Status: `0.2.0-dev`, Milestones 0–2 (workspace + image import + raster layers).
-> Builds and passes its unit tests in GitHub Actions; not yet run on a device.
+> Status: `0.3.0-dev`, Milestones 0–3 (workspace, image import, raster layers, `.phopsd` projects, export).
+> M0–M2 confirmed on a tablet; M3 builds and passes its tests in CI, device check pending.
 > See **PROJECT_STATUS.md** for exactly what has and hasn't been verified.
 
 ## Build
@@ -17,7 +17,7 @@ To build locally you need Android Studio (or the command line) with Android SDK 
 
 ```bash
 ./gradlew assembleDebug                          # APK at app/build/outputs/apk/debug/
-./gradlew :core:engine:test :core:editor:test    # 74 JVM unit tests
+./gradlew :core:engine:test :core:editor:test    # 117 JVM unit tests
 ./gradlew installDebug                           # install on a connected tablet/emulator
 ```
 

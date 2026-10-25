@@ -2,15 +2,15 @@
 
 Status vocabulary: **Implemented** = code complete with automated tests where the logic is testable on the JVM · **Implemented (UI)** = UI wired to real behaviour; type-checked against the AndroidX APIs but **not yet run on a device** · **Partial** · **Planned** (milestone). The plan lives in `docs/FEATURE_MATRIX.md`; this file reports reality. The in-app *Help ▸ Feature Status* dialog mirrors it.
 
-> This build compiles and passes its unit tests in GitHub Actions but has **not** been run on a device yet (see PROJECT_STATUS.md). Every "Implemented (UI)" row needs on-device confirmation.
+> M0–M2 rows were confirmed on the developer's tablet. M3 rows (and touch-rotation snapping) build in CI and pass JVM tests but have **not** been run on a device yet.
 
 | Capability | Status | Tests / evidence | Notes |
 |---|---|---|---|
 | Gradle project, version catalog, wrapper, manifest, theme, launcher icon | Implemented | CI build passes (GitHub Actions) | Not yet run on a device |
 | Design tokens, typography, Lucide icon set, pho.psd mark | Implemented (UI) | — | Original mark; no Adobe branding |
-| Home screen (New / Open Image / Open from Photos / Open Project) | Implemented (UI) | Controller tests | Open Project disabled (M3); no fake recents |
+| Home screen (New / Open Image / Open from Photos / Open Project / Recents / Recovery) | Implemented (UI) | Controller tests | Recents are real (saved/opened projects) |
 | New Document dialog (presets, size, ppi, orientation, background) | Implemented | `EditingTest.specValidation`, `newDocument…` | 8-bit sRGB only |
-| Header: doc name rename/info, unsaved state, undo/redo, save/export/settings (disabled with reasons) | Implemented (UI) | — | |
+| Header: doc name rename/info, save state (saving/saved/unsaved/autosaved/failed), undo/redo, Save, Export | Implemented (UI) | `PersistenceFlowTest` | Settings still planned (M7) |
 | Traditional menu bar File…Help with real command routing | Implemented (UI) | `plannedCommandsAreNeverEnabled`, `everyImplementedCommandIsHandled` | 37 working commands, 68 badged as planned |
 | Quick strip Edit/Adjust/FX/Filters/Layer/Select | Implemented (UI) | — | Opens command popovers |
 | Tool rail with tool families, long-press/right-click variants, hover tooltips | Implemented (UI) | `unavailableToolExplainsItself` | Working tools: Move, Hand, Zoom |
@@ -34,8 +34,14 @@ Status vocabulary: **Implemented** = code complete with automated tests where th
 | Paths panel | Planned (M8) | — | Honest empty state |
 | Preview renderer (base + detail, cancellable, parallel bands) | Partial | Compositor band test | CPU; GPU and dirty tiles M7 |
 | Keyboard shortcuts | Implemented (UI) | — | List in Help ▸ Keyboard Shortcuts |
-| Native `.phopsd` save / reopen, autosave | Planned (M3) | — | |
-| PNG / JPEG export | Planned (M3) | — | Will reuse the tested compositor |
+| Native `.phopsd` format v1 (manifest + lossless tiled rasters + hashes) | Implemented | `PersistenceTest` (19 tests): exact round trip, pixel-identical render after reopen, re-save stability, shared rasters, corruption/truncation/missing data/foreign file/newer version, unknown blend mode/layer type, JSON strictness | Not yet run on device |
+| Save / Save As via SAF (staged, verified, backup + restore) | Implemented (UI) | `PersistenceFlowTest` (save flow, edits during save, snapshot survives raster release) | SAF itself cannot replace atomically; see PROJECT_STATUS risks |
+| Open Project, Recent Projects | Implemented (UI) | `loadProjectOpensClean…`, `openProjectAsksBeforeDiscarding` | |
+| Unsaved-changes tracking, Save / Don't save / Cancel | Implemented | `editsDuringSaveKeepDocumentDirty`, `selectingLayersDoesNotDirty`, `saveThenCloseClosesOnlyAfterSuccess` | |
+| Autosave + crash recovery | Implemented (UI) | Format/verify tests; recovery opens dirty (`…RecoveryOpensDirty`) | 30 s idle + on background |
+| PNG / JPEG export (100/75/50/25%) | Implemented (UI) | `exportBandsMatchSinglePassAndAreStraightAlpha`, `exportOverWhite…` | sRGB 8-bit; JPEG flattens onto white |
+| Two-finger rotation snapping (view; layer via Move option) | Implemented | `PinchSnapTest` (9), `GesturesTest` (6) | Haptic tick on snap; step 15°/45°/90°/off |
+| Two-finger layer move/scale/rotate (Move tool option) | Implemented | `moveToolCanTransformTheLayer…`, `layerPinchFollowsFingers…` | One undo step per gesture |
 | Brush, eraser, masks, selections, crop, free transform | Planned (M4) | — | |
 | Adjustment layers (exposure, curves, levels, HSL…) | Planned (M5) | — | |
 | Groups, clone/heal, gradients, filters, layer effects | Planned (M6) | — | |

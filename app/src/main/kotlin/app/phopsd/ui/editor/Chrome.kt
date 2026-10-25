@@ -47,6 +47,7 @@ import app.phopsd.editor.EditorState
 import app.phopsd.editor.MenuEntry
 import app.phopsd.editor.Menus
 import app.phopsd.editor.QuickCategory
+import app.phopsd.editor.SaveState
 import app.phopsd.ui.components.CommandMenuItem
 import app.phopsd.ui.components.HDivider
 import app.phopsd.ui.components.MenuSectionHeader
@@ -110,7 +111,12 @@ fun EditorHeader(state: EditorState, c: EditorController) {
                         Box(Modifier.size(6.dp).clip(CircleShape).background(PhoColors.Warning))
                         Spacer(Modifier.width(5.dp))
                     }
-                    Text(saveStateText(state.dirty, state.lastEditAtMillis, now), style = PhoType.Caption)
+                    Text(
+                        saveStateText(state, now),
+                        style = PhoType.Caption.copy(
+                            color = if (state.saveState is SaveState.Failed) PhoColors.Danger else PhoColors.TextSecondary,
+                        ),
+                    )
                 }
             }
             DropdownMenu(expanded = docMenu, onDismissRequest = { docMenu = false }) {
@@ -121,8 +127,10 @@ fun EditorHeader(state: EditorState, c: EditorController) {
                 CommandMenuItem(CommandId.DocumentInfo, c.availability(CommandId.DocumentInfo), null) {
                     docMenu = false; c.dispatch(CommandId.DocumentInfo)
                 }
-                CommandMenuItem(CommandId.Save, c.availability(CommandId.Save), null) {
-                    docMenu = false; c.dispatch(CommandId.Save)
+                for (id in listOf(CommandId.Save, CommandId.SaveAs, CommandId.Export)) {
+                    CommandMenuItem(id, c.availability(id), null) {
+                        docMenu = false; c.dispatch(id)
+                    }
                 }
             }
         }
@@ -140,13 +148,14 @@ fun EditorHeader(state: EditorState, c: EditorController) {
             tooltip = state.history?.redoLabel?.let { "Redo $it (Shift+Ctrl+Z)" } ?: "Nothing to redo",
         )
         Spacer(Modifier.width(4.dp))
+        val save = c.availability(CommandId.Save)
         PhoIconButton(
             Lucide.Save, "Save", { c.dispatch(CommandId.Save) },
-            enabled = false,
-            tooltip = "Save — ${c.availability(CommandId.Save).explanation}",
+            enabled = save.isEnabled,
+            tooltip = save.explanation?.let { "Save — $it" } ?: (state.project?.let { "Save to “${it.displayName}” (Ctrl+S)" } ?: "Save as a .phopsd project (Ctrl+S)"),
         )
         Spacer(Modifier.width(10.dp))
-        ExportButton { c.dispatch(CommandId.Export) }
+        ExportButton(enabled = c.availability(CommandId.Export).isEnabled) { c.dispatch(CommandId.Export) }
         Spacer(Modifier.width(6.dp))
         PhoIconButton(Lucide.Settings, "Preferences", { c.dispatch(CommandId.Preferences) }, enabled = false,
             tooltip = "Preferences — ${c.availability(CommandId.Preferences).explanation}")
@@ -161,34 +170,52 @@ fun EditorHeader(state: EditorState, c: EditorController) {
     }
 }
 
-private fun saveStateText(dirty: Boolean, lastEdit: Long?, now: Long): String {
-    if (!dirty || lastEdit == null) return "Not saved · no changes"
-    val minutes = ((now - lastEdit) / 60_000).coerceAtLeast(0)
-    val ago = when (minutes) {
+private fun ago(now: Long, then: Long): String {
+    val minutes = ((now - then) / 60_000).coerceAtLeast(0)
+    return when (minutes) {
         0L -> "just now"
         1L -> "1 min ago"
         else -> "$minutes min ago"
     }
-    return "Unsaved changes · edited $ago"
 }
 
-/** Export is the primary action in the reference; shown honestly as not yet available. */
+private fun clock(millis: Long): String =
+    java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(millis))
+
+/** One-line save status under the document name. */
+fun saveStateText(state: EditorState, now: Long): String {
+    val saveState = state.saveState
+    return when {
+        saveState is SaveState.Saving -> "Saving…"
+        saveState is SaveState.Failed -> "Save failed · ${saveState.message}"
+        state.dirty -> buildString {
+            append("Unsaved changes")
+            state.lastEditAtMillis?.let { append(" · edited ").append(ago(now, it)) }
+            state.autosavedAtMillis?.let { append(" · autosaved ").append(clock(it)) }
+        }
+        saveState is SaveState.Saved -> "Saved ${clock(saveState.atMillis)}"
+        state.project != null -> "Saved · ${state.project?.displayName}"
+        else -> "Not saved as a project yet"
+    }
+}
+
+/** The reference's primary action: blue Export. */
 @Composable
-private fun ExportButton(onClick: () -> Unit) {
-    Tooltipped("Export — PNG/JPEG export arrives with project persistence (M3)") {
+private fun ExportButton(enabled: Boolean, onClick: () -> Unit) {
+    Tooltipped("Export PNG / JPEG (Alt+Shift+Ctrl+W)") {
         Row(
             Modifier
                 .height(40.dp)
                 .clip(RoundedCornerShape(20.dp))
-                .border(1.dp, PhoColors.Accent.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
-                .background(PhoColors.Accent.copy(alpha = 0.12f))
-                .clickable(role = Role.Button, onClickLabel = "Export (not available yet)", onClick = onClick)
+                .background(if (enabled) PhoColors.Accent else PhoColors.Raised)
+                .clickable(role = Role.Button, onClickLabel = "Export", onClick = onClick)
                 .padding(horizontal = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Lucide.Upload, null, tint = PhoColors.TextSecondary, modifier = Modifier.size(18.dp))
+            val fg = if (enabled) PhoColors.TextPrimary else PhoColors.TextDisabled
+            Icon(Lucide.Upload, null, tint = fg, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Export", style = PhoType.BodyMedium.copy(color = PhoColors.TextSecondary))
+            Text("Export", style = PhoType.BodyMedium.copy(color = fg))
         }
     }
 }
@@ -371,8 +398,9 @@ fun StatusBar(state: EditorState, c: EditorController) {
         Text("Tool: ${state.effectiveTool.label}", style = PhoType.Caption)
         StatusSep()
         Text(
-            if (state.dirty) "Unsaved · project saving arrives in M3" else "Not saved",
+            saveStateText(state, System.currentTimeMillis()),
             style = PhoType.Caption.copy(color = if (state.dirty) PhoColors.Warning else PhoColors.TextSecondary),
+            maxLines = 1,
         )
     }
 }

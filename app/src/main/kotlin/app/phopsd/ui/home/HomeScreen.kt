@@ -35,6 +35,12 @@ import app.phopsd.editor.Availability
 import app.phopsd.editor.CommandId
 import app.phopsd.editor.EditorController
 import app.phopsd.editor.EditorState
+import app.phopsd.platform.AutosaveMeta
+import app.phopsd.platform.EditorViewModel
+import app.phopsd.ui.components.PhoButton
+import app.phopsd.ui.editor.RecentRow
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.phopsd.ui.components.MilestoneBadge
 import app.phopsd.ui.editor.NoticePill
 import app.phopsd.ui.components.VDivider
@@ -44,11 +50,14 @@ import app.phopsd.ui.theme.PhoColors
 import app.phopsd.ui.theme.PhoType
 
 /**
- * Start screen: a restrained, desktop-like launcher. No fake recents: the list stays empty
- * until native project saving (M3) exists.
+ * Start screen: a restrained, desktop-like launcher with crash recovery and the real list
+ * of projects saved or opened in this app.
  */
 @Composable
-fun HomeScreen(state: EditorState, c: EditorController) {
+fun HomeScreen(state: EditorState, vm: EditorViewModel) {
+    val c = vm.controller
+    val recents by vm.recents.items.collectAsStateWithLifecycle()
+    val recovery by vm.recovery.collectAsStateWithLifecycle()
     Box(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxSize()) {
             Column(
@@ -94,6 +103,7 @@ fun HomeScreen(state: EditorState, c: EditorController) {
                     .fillMaxHeight()
                     .padding(horizontal = 40.dp, vertical = 40.dp),
             ) {
+                recovery?.let { RecoveryCard(it, onRecover = vm::recoverAutosave, onDiscard = vm::discardAutosave) }
                 Text("Recent projects", style = PhoType.Title)
                 Spacer(Modifier.height(16.dp))
                 Box(
@@ -102,20 +112,27 @@ fun HomeScreen(state: EditorState, c: EditorController) {
                         .weight(1f)
                         .clip(RoundedCornerShape(12.dp))
                         .border(1.dp, PhoColors.Divider, RoundedCornerShape(12.dp)),
-                    contentAlignment = Alignment.Center,
+                    contentAlignment = if (recents.isEmpty()) Alignment.Center else Alignment.TopStart,
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.widthIn(max = 420.dp)) {
-                        Icon(Lucide.Layers, null, tint = PhoColors.TextDisabled, modifier = Modifier.size(40.dp))
-                        Spacer(Modifier.height(14.dp))
-                        Text("No saved projects yet", style = PhoType.BodyMedium)
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "Projects saved in the native .phopsd format will be listed here with thumbnails, " +
-                                "dimensions and modification dates. Project saving arrives in Milestone 3; until then, " +
-                                "documents live only for this session.",
-                            style = PhoType.Label,
-                            textAlign = TextAlign.Center,
-                        )
+                    if (recents.isEmpty()) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.widthIn(max = 420.dp)) {
+                            Icon(Lucide.Layers, null, tint = PhoColors.TextDisabled, modifier = Modifier.size(40.dp))
+                            Spacer(Modifier.height(14.dp))
+                            Text("No projects yet", style = PhoType.BodyMedium)
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "Projects you save (File ▸ Save, .phopsd) or open in pho.psd appear here with " +
+                                    "thumbnails, dimensions and dates.",
+                                style = PhoType.Label,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    } else {
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(8.dp)) {
+                            for (r in recents) {
+                                RecentRow(r, onOpen = { vm.openRecent(r.uri) }, onRemove = { vm.removeRecent(r.uri) })
+                            }
+                        }
                     }
                 }
             }
@@ -123,6 +140,37 @@ fun HomeScreen(state: EditorState, c: EditorController) {
         // Notices (e.g. import errors, "arrives in M3" explanations) must be visible here too.
         NoticePill(state, c, Modifier.align(Alignment.TopCenter).padding(top = 16.dp))
         state.busy?.let { BusyOverlay(it) }
+    }
+}
+
+@Composable
+private fun RecoveryCard(meta: AutosaveMeta, onRecover: () -> Unit, onDiscard: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(bottom = 24.dp)
+            .clip(shape)
+            .background(PhoColors.Raised)
+            .border(1.dp, PhoColors.Warning.copy(alpha = 0.6f), shape)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Lucide.CircleAlert, null, tint = PhoColors.Warning, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text("Unsaved work from your last session", style = PhoType.BodyMedium)
+            Text(
+                "“${meta.documentName}” · ${meta.width} × ${meta.height} px · autosaved " +
+                    java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT)
+                        .format(java.util.Date(meta.savedAtMillis)),
+                style = PhoType.Caption,
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        PhoButton("Discard", onDiscard)
+        Spacer(Modifier.width(8.dp))
+        PhoButton("Recover", onRecover, primary = true)
     }
 }
 

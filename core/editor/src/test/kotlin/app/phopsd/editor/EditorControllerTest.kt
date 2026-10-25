@@ -37,8 +37,8 @@ class EditorControllerTest {
             assertFalse("$id must stay disabled", c.availability(id).isEnabled)
         }
         // Dispatching a planned command explains instead of acting.
-        c.dispatch(CommandId.Save)
-        assertTrue(c.state.value.notice!!.text.contains("M3"))
+        c.dispatch(CommandId.AddMask)
+        assertTrue(c.state.value.notice!!.text.contains("M4"))
     }
 
     @Test

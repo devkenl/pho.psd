@@ -32,6 +32,8 @@ import app.phopsd.editor.EditorDialog
 import app.phopsd.editor.EditorState
 import app.phopsd.editor.NumericTarget
 import app.phopsd.editor.Tool
+import app.phopsd.editor.TwoFingerTarget
+import app.phopsd.engine.geometry.AngleSnap
 import app.phopsd.engine.geometry.Viewport
 import app.phopsd.engine.model.RasterLayer
 import app.phopsd.ui.components.PhoIconButton
@@ -106,6 +108,12 @@ private fun MoveOptions(state: EditorState, c: EditorController) {
     val doc = state.document ?: return
     val layer = doc.activeLayer as? RasterLayer
     ToggleChip("Auto-select layer", state.autoSelectLayer) { c.setAutoSelectLayer(!state.autoSelectLayer) }
+    OptionsSep()
+    OptionLabel("Two fingers")
+    for (t in TwoFingerTarget.entries) {
+        ToggleChip(t.label, state.twoFingerTarget == t) { c.setTwoFingerTarget(t) }
+    }
+    SnapOptions(state, c)
     OptionsSep()
     if (layer == null) {
         Text("Select a layer to move", style = PhoType.Label, modifier = Modifier.padding(horizontal = 12.dp))
@@ -191,6 +199,24 @@ private fun ViewOptions(state: EditorState, c: EditorController) {
     }
     PhoIconButton(Lucide.RotateCw, "Rotate view +15°", { c.dispatch(CommandId.RotateViewRight) })
     TextAction("Reset", enabled = vp.rotationDegrees != 0.0) { c.dispatch(CommandId.ResetViewRotation) }
+    SnapOptions(state, c)
+}
+
+/** Magnetic snapping for two-finger rotation (view, and layer when the Move tool transforms it). */
+@Composable
+private fun SnapOptions(state: EditorState, c: EditorController) {
+    OptionsSep()
+    OptionLabel("Rotation snap")
+    val snap = state.rotationSnap
+    ToggleChip("Off", !snap.enabled) { c.setRotationSnapStep(null) }
+    for (step in AngleSnap.STEPS) {
+        ToggleChip("${step.roundToInt()}°", snap.enabled && snap.stepDegrees == step) { c.setRotationSnapStep(step) }
+    }
+}
+
+@Composable
+private fun OptionLabel(text: String) {
+    Text(text, style = PhoType.Caption, modifier = Modifier.padding(start = 4.dp, end = 2.dp))
 }
 
 @Composable

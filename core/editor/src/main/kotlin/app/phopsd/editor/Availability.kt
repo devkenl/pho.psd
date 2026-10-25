@@ -25,8 +25,6 @@ sealed interface Availability {
 
 /** Shared "not built yet" reasons so wording stays consistent and greppable. */
 object Roadmap {
-    val SAVE = Availability.Planned("M3", "Native .phopsd projects arrive with save/reopen")
-    val EXPORT = Availability.Planned("M3", "PNG/JPEG export arrives with project persistence")
     val PAINT = Availability.Planned("M4", "The brush engine is not built yet")
     val SELECTION = Availability.Planned("M4", "The selection engine is not built yet")
     val CROP_TRANSFORM = Availability.Planned("M4", "Crop and free-transform handles are not built yet")

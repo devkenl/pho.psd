@@ -10,8 +10,20 @@ import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateRotation
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -38,14 +50,18 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.phopsd.editor.EditorState
+import app.phopsd.editor.RotationHud
 import app.phopsd.editor.Tool
+import app.phopsd.editor.TwoFingerTarget
+import app.phopsd.ui.icons.Lucide
+import app.phopsd.ui.theme.PhoType
+import kotlin.math.roundToInt
 import app.phopsd.engine.geometry.Affine
 import app.phopsd.engine.geometry.PointD
 import app.phopsd.engine.model.RasterLayer
 import app.phopsd.platform.EditorViewModel
 import app.phopsd.platform.PreviewFrame
 import app.phopsd.ui.theme.PhoColors
-import kotlin.math.abs
 import kotlin.math.pow
 
 /**
@@ -105,8 +121,6 @@ fun CanvasView(
                     var last = start
                     var moved = false
                     var multi = false
-                    var rotating = false
-                    var rotationAccum = 0f
                     var moving = false
                     val slop = viewConfiguration.touchSlop
                     vm.setInteracting(true)
@@ -119,32 +133,23 @@ fun CanvasView(
                             val pressed = event.changes.count { it.pressed }
                             if (pressed == 0) break
                             if (pressed >= 2) {
+                                val centroid = event.calculateCentroid(useCurrent = true)
                                 if (!multi) {
                                     multi = true
                                     if (moving) {
                                         c.cancelMove()
                                         moving = false
                                     }
-                                }
-                                val zoom = event.calculateZoom()
-                                val pan = event.calculatePan()
-                                val centroid = event.calculateCentroid(useCurrent = true)
-                                val rot = event.calculateRotation()
-                                var applyRot = 0f
-                                if (rotating) {
-                                    applyRot = rot
-                                } else {
-                                    rotationAccum += rot
-                                    if (abs(rotationAccum) > ROTATION_THRESHOLD_DEG) {
-                                        rotating = true
-                                        applyRot = rotationAccum
-                                    }
+                                    val start = if (centroid != Offset.Unspecified) centroid else Offset.Zero
+                                    c.beginPinch(start.x.toDouble(), start.y.toDouble())
                                 }
                                 if (centroid != Offset.Unspecified) {
-                                    c.transformView(
+                                    // Rotation thresholds and snapping live in the controller (unit-tested).
+                                    val pan = event.calculatePan()
+                                    c.updatePinch(
                                         centroid.x.toDouble(), centroid.y.toDouble(),
                                         pan.x.toDouble(), pan.y.toDouble(),
-                                        zoom.toDouble(), applyRot.toDouble(),
+                                        event.calculateZoom().toDouble(), event.calculateRotation().toDouble(),
                                     )
                                 }
                                 event.changes.forEach { it.consume() }
@@ -175,13 +180,15 @@ fun CanvasView(
                                 Tool.Zoom -> if (!moved) c.zoomToolTap(start.x.toDouble(), start.y.toDouble(), zoomOutMode)
                                 else -> {}
                             }
-                        } else if (moving) {
-                            c.cancelMove()
+                        } else {
+                            if (moving) c.cancelMove()
+                            c.endPinch()
                         }
                         finished = true
                     } finally {
                         // Gesture cancelled (e.g. pointer input reset): never leave a half-applied drag.
                         if (!finished && moving) c.cancelMove()
+                        if (!finished && multi) c.cancelPinch()
                         vm.setInteracting(false)
                     }
                 }
@@ -205,7 +212,7 @@ fun CanvasView(
             }
             drawPath(docQuad, color = PhoColors.Divider, style = Stroke(width = 1f))
 
-            // Active layer bounds (Move tool), drawn from the live document so it tracks drags instantly.
+            // Active layer bounds (Move tool / layer pinch), drawn from the live document so it tracks instantly.
             if (state.effectiveTool == Tool.Move) {
                 val layer = doc.activeLayer as? RasterLayer
                 if (layer != null && layer.visible) {
@@ -218,10 +225,47 @@ fun CanvasView(
                 }
             }
         }
+        RotationReadout(state.rotationHud, Modifier.align(Alignment.TopCenter).padding(top = 56.dp))
     }
 }
 
-private const val ROTATION_THRESHOLD_DEG = 12f
+/**
+ * Angle readout while rotating with two fingers. A haptic tick fires each time the
+ * rotation locks onto a snap angle, so the snap can be felt without looking.
+ */
+@Composable
+private fun RotationReadout(hud: RotationHud?, modifier: Modifier = Modifier) {
+    val haptics = LocalHapticFeedback.current
+    val snappedAt = hud?.takeIf { it.snapped }?.degrees?.roundToInt()
+    LaunchedEffect(snappedAt) {
+        if (snappedAt != null) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+    }
+    if (hud == null) return
+    val shape = RoundedCornerShape(16.dp)
+    Row(
+        modifier
+            .clip(shape)
+            .background(PhoColors.Raised.copy(alpha = 0.94f))
+            .border(1.dp, if (hud.snapped) PhoColors.Accent else PhoColors.Divider, shape)
+            .padding(horizontal = 14.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            if (hud.target == TwoFingerTarget.Layer) "Layer" else "View",
+            style = PhoType.Caption,
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            "${hud.degrees.roundToInt()}°",
+            style = PhoType.Title.copy(color = if (hud.snapped) PhoColors.AccentHover else PhoColors.TextPrimary),
+        )
+        if (hud.snapped) {
+            Spacer(Modifier.width(8.dp))
+            Icon(Lucide.Magnet, "Snapped", tint = PhoColors.AccentHover, modifier = Modifier.size(16.dp))
+        }
+    }
+}
+
 
 private fun drawFrame(
     nc: android.graphics.Canvas,

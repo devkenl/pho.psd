@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -30,7 +31,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import app.phopsd.BuildConfigInfo
+import app.phopsd.editor.CommandId
 import app.phopsd.editor.EditorController
+import app.phopsd.editor.ExportFormat
+import app.phopsd.editor.ExportSettings
 import app.phopsd.editor.EditorDialog
 import app.phopsd.editor.EditorState
 import app.phopsd.editor.FeatureStatusList
@@ -44,6 +48,11 @@ import app.phopsd.engine.model.NewDocumentSpec
 import app.phopsd.engine.model.RasterLayer
 import app.phopsd.platform.EditorViewModel
 import app.phopsd.platform.ImageImporter
+import app.phopsd.platform.RecentProject
+import app.phopsd.engine.render.ExportRenderer
+import app.phopsd.ui.components.PhoSlider
+import app.phopsd.ui.icons.Lucide
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.phopsd.ui.components.HDivider
 import app.phopsd.ui.components.InfoLine
 import app.phopsd.ui.components.LabeledRow
@@ -72,6 +81,106 @@ fun EditorDialogs(state: EditorState, vm: EditorViewModel) {
         EditorDialog.Shortcuts -> ShortcutsDialog(c)
         EditorDialog.FeatureStatus -> FeatureStatusDialog(c)
         EditorDialog.Diagnostics -> DiagnosticsDialog(state, c)
+        is EditorDialog.Export -> ExportDialog(state, d.settings, c)
+        EditorDialog.Recents -> RecentsDialog(vm)
+    }
+}
+
+@Composable
+private fun ExportDialog(state: EditorState, initial: ExportSettings, c: EditorController) {
+    val doc = state.document ?: return
+    var format by remember { mutableStateOf(initial.format) }
+    var quality by remember { mutableStateOf(initial.quality.toFloat()) }
+    var scale by remember { mutableStateOf(initial.scale) }
+    val (w, h) = ExportRenderer.outputSize(doc, scale)
+    PhoDialog(
+        title = "Export",
+        onDismiss = c::dismissDialog,
+        width = 520.dp,
+        actions = {
+            PhoButton("Cancel", c::dismissDialog)
+            PhoButton("Export…", { c.confirmExport(ExportSettings(format, quality.roundToInt().coerceIn(1, 100), scale)) }, primary = true)
+        },
+    ) {
+        LabeledRow("Format") {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (f in ExportFormat.entries) Chip(f.label, format == f) { format = f }
+            }
+        }
+        if (format == ExportFormat.Jpeg) {
+            LabeledRow("Quality") {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    PhoSlider(quality, 1f..100f, { quality = it }, Modifier.weight(1f))
+                    Spacer(Modifier.width(10.dp))
+                    Text("${quality.roundToInt()}", style = PhoType.Value, modifier = Modifier.width(32.dp))
+                }
+            }
+        }
+        LabeledRow("Size") {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (pct in listOf(100, 75, 50, 25)) Chip("$pct%", scale == pct / 100.0) { scale = pct / 100.0 }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        InfoLine("Output", "$w × $h px · sRGB · 8-bit")
+        Text(
+            if (format == ExportFormat.Jpeg) {
+                "JPEG has no transparency: any transparent areas are flattened onto white in the exported file. Your project keeps all layers."
+            } else {
+                "PNG is lossless and keeps transparency. Your project keeps all layers."
+            },
+            style = PhoType.Caption,
+        )
+    }
+}
+
+@Composable
+private fun RecentsDialog(vm: EditorViewModel) {
+    val c = vm.controller
+    val items by vm.recents.items.collectAsStateWithLifecycle()
+    PhoDialog(title = "Recent Projects", onDismiss = c::dismissDialog, width = 560.dp, actions = {
+        PhoButton("Open Other…", { c.dismissDialog(); c.dispatch(CommandId.OpenProject) })
+        PhoButton("Close", c::dismissDialog, primary = true)
+    }) {
+        if (items.isEmpty()) {
+            Text("Projects you save or open appear here.", style = PhoType.Label)
+        }
+        Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+            for (r in items) {
+                RecentRow(r, onOpen = { c.dismissDialog(); vm.openRecent(r.uri) }, onRemove = { vm.removeRecent(r.uri) })
+            }
+        }
+    }
+}
+
+/** Shared by the Recents dialog and the home screen list. */
+@Composable
+fun RecentRow(r: RecentProject, onOpen: () -> Unit, onRemove: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(role = Role.Button, onClickLabel = "Open ${r.name}", onClick = onOpen)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(56.dp).clip(RoundedCornerShape(6.dp)).background(PhoColors.CheckerDark),
+            contentAlignment = Alignment.Center,
+        ) {
+            r.thumbnail?.let {
+                androidx.compose.foundation.Image(it, null, contentScale = androidx.compose.ui.layout.ContentScale.Fit, modifier = Modifier.fillMaxSize())
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(r.name, style = PhoType.Body, maxLines = 1)
+            Text(
+                "${r.width} × ${r.height} px · ${java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT).format(java.util.Date(r.lastOpenedMillis))}",
+                style = PhoType.Caption,
+            )
+        }
+        app.phopsd.ui.components.PhoIconButton(Lucide.X, "Remove from recents", onRemove, size = 32.dp, iconSize = 16.dp)
     }
 }
 
@@ -210,22 +319,24 @@ private fun formatNumber(v: Double): String =
 private fun ConfirmDiscardDialog(state: EditorState, action: PendingAction, c: EditorController) {
     val name = state.document?.name ?: "this document"
     val verb = when (action) {
-        PendingAction.Close -> "Close"
-        is PendingAction.Pick -> "Open another image"
-        PendingAction.NewDocument -> "Create a new document"
+        PendingAction.Close -> "Closing"
+        is PendingAction.Pick -> "Opening another image"
+        PendingAction.NewDocument -> "Creating a new document"
+        PendingAction.OpenProject, is PendingAction.OpenRecent -> "Opening another project"
     }
     PhoDialog(
-        title = "Discard “$name”?",
+        title = "Save changes to “$name”?",
         onDismiss = c::dismissDialog,
+        width = 520.dp,
         actions = {
-            PhoButton("Keep editing", c::dismissDialog)
-            PhoButton("Discard and continue", { c.confirmDiscard(action) }, primary = true)
+            PhoButton("Cancel", c::dismissDialog)
+            PhoButton("Don't save", { c.confirmDiscard(action) })
+            PhoButton("Save", { c.saveThen(action) }, primary = true)
         },
     ) {
         Text(
-            "$verb will discard “$name”. This build cannot save projects yet (native .phopsd saving arrives " +
-                "in Milestone 3), so the layers and history of this document will be lost. Your original image " +
-                "files are never modified.",
+            "$verb will close this document. Unsaved changes will be lost unless you save them first. " +
+                "Your original image files are never modified.",
             style = PhoType.Body,
         )
     }
@@ -251,7 +362,8 @@ private fun DocumentInfoDialog(state: EditorState, c: EditorController) {
                 InfoLine("Pixel memory", formatBytes(it.rasterBytes) + " in ${it.rasterCount} rasters (incl. previews/undo)")
                 InfoLine("History", "${it.historyEntries} states")
             }
-            InfoLine("Saved", "No — project saving arrives in M3")
+            InfoLine("Project file", state.project?.displayName ?: "Not saved as a project yet")
+            InfoLine("Status", saveStateText(state, System.currentTimeMillis()))
             val sources = doc.layers.mapNotNull { l -> (l as? RasterLayer)?.source?.let { l.name to it } }
             if (sources.isNotEmpty()) {
                 Spacer(Modifier.height(10.dp))
