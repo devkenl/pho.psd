@@ -7,6 +7,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -52,6 +53,8 @@ import app.phopsd.ui.components.MilestoneBadge
 import app.phopsd.ui.components.TooltipSide
 import app.phopsd.ui.components.Tooltipped
 import app.phopsd.ui.icons.Lucide
+import app.phopsd.editor.CommandId
+import app.phopsd.ui.components.PhoIconButton
 import app.phopsd.ui.theme.PhoColors
 import app.phopsd.ui.theme.PhoDimens
 import app.phopsd.ui.theme.PhoType
@@ -81,7 +84,7 @@ fun Tool.icon(): ImageVector = when (this) {
     Tool.ObjectSelection -> Lucide.SquareMousePointer
     Tool.QuickSelection, Tool.MagicWand -> Lucide.WandSparkles
     Tool.Pen -> Lucide.PenTool
-    Tool.Eyedropper -> Lucide.Droplet
+    Tool.Eyedropper -> Lucide.Pipette
     else -> ToolGroup.of(this).icon()
 }
 
@@ -103,6 +106,11 @@ fun ToolRail(state: EditorState, c: EditorController, onOpenCategory: (QuickCate
     ) {
         for (group in ToolGroup.entries) {
             RailButton(group, state, c, onOpenCategory)
+        }
+        Spacer(Modifier.height(10.dp))
+        ColorSwatches(state, c, compact = true)
+        Row {
+            PhoIconButton(Lucide.ArrowLeftRight, "Swap colors", { c.dispatch(CommandId.SwapColors) }, tooltip = "Swap colors (X)")
         }
     }
 }

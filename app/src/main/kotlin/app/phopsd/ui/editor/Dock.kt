@@ -249,7 +249,8 @@ private fun LayersPanel(state: EditorState, c: EditorController, thumbs: Map<Ras
             DockAction(Lucide.LayersPlus, "New layer", CommandId.NewLayer, c)
             DockAction(Lucide.ImagePlus, "Place image as layer", CommandId.PlaceImage, c)
             DockAction(Lucide.Copy, "Duplicate layer", CommandId.DuplicateLayer, c)
-            DockAction(Lucide.SquareDot, "Add layer mask", CommandId.AddMask, c)
+            DockAction(Lucide.SquareDot, "Add layer mask (reveals the selection, if any)", CommandId.AddMask, c)
+            DockAction(Lucide.Merge, "Merge down", CommandId.MergeDown, c)
             DockAction(Lucide.Folder, "New group", CommandId.NewGroup, c)
             DockAction(Lucide.Sun, "New adjustment layer", CommandId.NewAdjustmentLayer, c)
             DockAction(Lucide.Trash, "Delete layer", CommandId.DeleteLayer, c)
@@ -371,6 +372,8 @@ private fun LayerList(state: EditorState, c: EditorController, thumbs: Map<Raste
                 LayerRow(
                     layer = layer,
                     thumb = (layer as? RasterLayer)?.let { thumbs[it.rasterId] },
+                    maskThumb = (layer as? RasterLayer)?.mask?.let { thumbs[it.rasterId] },
+                    maskTargeted = layer.id == doc.activeLayerId && state.paintsMask,
                     selected = layer.id == doc.activeLayerId,
                     thumbSize = state.thumbSize,
                     rowHeight = rowHeight,
@@ -397,6 +400,8 @@ private fun LayerList(state: EditorState, c: EditorController, thumbs: Map<Raste
 private fun LayerRow(
     layer: Layer,
     thumb: ImageBitmap?,
+    maskThumb: ImageBitmap?,
+    maskTargeted: Boolean,
     selected: Boolean,
     thumbSize: ThumbSize,
     rowHeight: androidx.compose.ui.unit.Dp,
@@ -435,7 +440,31 @@ private fun LayerRow(
             size = 36.dp,
             iconSize = 18.dp,
         )
-        LayerThumb(thumb, thumbSize, dimmed = !layer.visible)
+        val mask = (layer as? RasterLayer)?.mask
+        LayerThumb(
+            thumb, thumbSize, dimmed = !layer.visible,
+            highlighted = selected && mask != null && !maskTargeted,
+            label = "Layer pixels",
+        ) {
+            c.selectLayer(layer.id)
+            if (mask != null) c.tools.setPaintTarget(app.phopsd.editor.PaintTarget.Pixels)
+        }
+        if (mask != null) {
+            Spacer(Modifier.width(4.dp))
+            Box {
+                LayerThumb(
+                    maskThumb, thumbSize, dimmed = !layer.visible || !mask.enabled,
+                    highlighted = maskTargeted,
+                    label = if (mask.enabled) "Layer mask" else "Layer mask (disabled)",
+                ) {
+                    c.selectLayer(layer.id)
+                    c.tools.setPaintTarget(app.phopsd.editor.PaintTarget.Mask)
+                }
+                if (!mask.enabled) {
+                    Icon(Lucide.X, null, tint = PhoColors.Danger, modifier = Modifier.size(thumbSize.dp.dp).padding(4.dp))
+                }
+            }
+        }
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(
@@ -448,6 +477,7 @@ private fun LayerRow(
                 append(if (layer is RasterLayer) "Layer" else layer.typeLabel)
                 if (layer.blendMode != BlendMode.Normal) append(" · ").append(layer.blendMode.displayName)
                 if (layer.opacity < 1f) append(" · ").append((layer.opacity * 100).roundToInt()).append('%')
+                if (maskTargeted) append(" · editing mask")
             }
             Text(sub, style = PhoType.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
@@ -463,7 +493,9 @@ private fun LayerRow(
                 for (id in listOf(
                     CommandId.RenameLayer, CommandId.DuplicateLayer, CommandId.ToggleLayerLock,
                     CommandId.BringForward, CommandId.SendBackward, CommandId.ResetLayerTransform,
-                    CommandId.AddMask, CommandId.DeleteLayer,
+                    CommandId.AddMask, CommandId.AddMaskHideAll, CommandId.ToggleMaskEnabled, CommandId.InvertMask,
+                    CommandId.ViewMask, CommandId.ApplyMask, CommandId.DeleteMask,
+                    CommandId.MergeDown, CommandId.DeleteLayer,
                 )) {
                     app.phopsd.ui.components.CommandMenuItem(id, c.availability(id), null) {
                         menu = false
@@ -476,14 +508,23 @@ private fun LayerRow(
 }
 
 @Composable
-private fun LayerThumb(image: ImageBitmap?, size: ThumbSize, dimmed: Boolean) {
+private fun LayerThumb(
+    image: ImageBitmap?,
+    size: ThumbSize,
+    dimmed: Boolean,
+    highlighted: Boolean = false,
+    label: String = "Layer pixels",
+    onClick: (() -> Unit)? = null,
+) {
     val shape = RoundedCornerShape(4.dp)
     Box(
         Modifier
             .size(size.dp.dp)
             .clip(shape)
             .background(PhoColors.CheckerDark)
-            .border(1.dp, PhoColors.Divider, shape),
+            .border(if (highlighted) 2.dp else 1.dp, if (highlighted) PhoColors.TextPrimary else PhoColors.Divider, shape)
+            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClickLabel = "Edit $label", onClick = onClick) else Modifier)
+            .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
         if (image != null) {

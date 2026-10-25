@@ -230,7 +230,7 @@ fun PhoButton(
                 .clip(shape)
                 .background(bg)
                 .border(1.dp, if (primary && enabled) PhoColors.Accent else PhoColors.Divider, shape)
-                .clickable(role = Role.Button, onClick = onClick)
+                .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
                 .semantics { if (!enabled) stateDescription = "Unavailable" }
                 .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,

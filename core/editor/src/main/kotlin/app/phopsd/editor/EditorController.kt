@@ -101,6 +101,14 @@ class EditorController(
     internal fun compositorFor(): Compositor = compositor
 
     /**
+     * The document produced by the most recent brush stroke commit. Its pixels equal what the
+     * live stroke already showed, so previews patched during the stroke stay valid for it.
+     */
+    @Volatile
+    var lastStrokeDocument: Document? = null
+        internal set
+
+    /**
      * Runs a long pixel operation (merge, flatten, apply mask). The app replaces this with a
      * background runner that shows a busy indicator; tests run it inline.
      */

@@ -253,6 +253,24 @@ object Lucide {
 
     /** Lucide "circle-alert" */
     val CircleAlert: ImageVector by lazy { lucide("circle-alert", "M2 12a10 10 0 1 0 20 0a10 10 0 1 0 -20 0", "M12 8L12 12", "M12 16L12.01 16") }
+
+    /** Lucide "triangles-centerline-dashed-horizontal" */
+    val TrianglesCenterlineDashedHorizontal: ImageVector by lazy { lucide("triangles-centerline-dashed-horizontal", "M10 12H8", "M16 12h-2", "M22 12h-2", "M4 12H2", "M7.298 20.288A1 1 0 008 22h8a1 1 0 00.703-1.712l-3.991-3.99a1 1 0 00-1.424-.001z", "M7.298 3.712A1 1 0 018 2h8a1 1 0 01.703 1.712l-3.991 3.99a1 1 0 01-1.424.001z") }
+
+    /** Lucide "triangles-centerline-dashed-vertical" */
+    val TrianglesCenterlineDashedVertical: ImageVector by lazy { lucide("triangles-centerline-dashed-vertical", "M12 14v2", "M12 20v2", "M12 2v2", "M12 8v2", "M20.288 16.703A1 1 0 0022 16V8a1 1 0 00-1.712-.703l-3.99 3.991a1 1 0 00-.001 1.424z", "M3.712 16.703A1 1 0 012 16V8a1 1 0 011.712-.703l3.99 3.991a1 1 0 01.001 1.424z") }
+
+    /** Lucide "arrow-left-right" */
+    val ArrowLeftRight: ImageVector by lazy { lucide("arrow-left-right", "M8 3 4 7l4 4", "M4 7h16", "m16 21 4-4-4-4", "M20 17H4") }
+
+    /** Lucide "pipette" */
+    val Pipette: ImageVector by lazy { lucide("pipette", "m12 9-8.414 8.414A2 2 0 0 0 3 18.828v1.344a2 2 0 0 1-.586 1.414A2 2 0 0 1 3.828 21h1.344a2 2 0 0 0 1.414-.586L15 12", "m18 9 .4.4a1 1 0 1 1-3 3l-3.8-3.8a1 1 0 1 1 3-3l.4.4 3.4-3.4a1 1 0 1 1 3 3z", "m2 22 .414-.414") }
+
+    /** Lucide "merge" */
+    val Merge: ImageVector by lazy { lucide("merge", "m8 6 4-4 4 4", "M12 2v10.3a4 4 0 0 1-1.172 2.872L4 22", "m20 22-5-5") }
+
+    /** Lucide "refresh-cw" */
+    val RefreshCw: ImageVector by lazy { lucide("refresh-cw", "M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8", "M21 3v5h-5", "M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16", "M8 16H3v5") }
 }
 
 private fun lucide(name: String, vararg paths: String): ImageVector {

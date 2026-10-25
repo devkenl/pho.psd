@@ -83,6 +83,11 @@ fun EditorDialogs(state: EditorState, vm: EditorViewModel) {
         EditorDialog.Diagnostics -> DiagnosticsDialog(state, c)
         is EditorDialog.Export -> ExportDialog(state, d.settings, c)
         EditorDialog.Recents -> RecentsDialog(vm)
+        is EditorDialog.ImageSize -> ImageSizeDialog(d.width, d.height, c)
+        is EditorDialog.CanvasSize -> CanvasSizeDialog(d.width, d.height, c)
+        is EditorDialog.Fill -> FillDialog(d.hasSelection, state, c)
+        is EditorDialog.ConfirmFlatten -> ConfirmFlattenDialog(d.hiddenLayers, c)
+        is EditorDialog.ColorPicker -> ColorPickerDialog(d.slot, d.current, c)
     }
 }
 
@@ -255,7 +260,7 @@ private fun NewDocumentDialog(c: EditorController) {
 }
 
 @Composable
-private fun Chip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+internal fun Chip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val shape = RoundedCornerShape(6.dp)
     Box(
         modifier

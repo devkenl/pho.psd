@@ -229,7 +229,7 @@ class CanvasTools internal constructor(private val c: EditorController) {
             sess.onMask -> CanvasEdits.setMaskRaster(doc, sess.layerId, newId)
             else -> CanvasEdits.replaceLayerRaster(doc, sess.layerId, newId)
         }
-        c.commitPixels(sess.label, edit, newId)
+        if (c.commitPixels(sess.label, edit, newId)) c.lastStrokeDocument = c.state.value.history?.current
         c.setLiveOverride(null, null)
         update { it.copy(stroking = false) }
         c.addStrokeDirty(sess.layerToDoc.mapRectBounds(dirty.toRectD()))

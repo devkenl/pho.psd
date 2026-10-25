@@ -76,6 +76,11 @@ fun ToolOptionsBar(state: EditorState, c: EditorController, modifier: Modifier =
                 OptionsSep()
                 ViewOptions(state, c)
             }
+            Tool.Brush, Tool.Eraser, Tool.Mask -> BrushOptions(state, c)
+            Tool.Eyedropper -> EyedropperOptions(state, c)
+            Tool.RectMarquee, Tool.EllipticalMarquee, Tool.Lasso, Tool.PolygonalLasso -> SelectionOptions(state, c)
+            Tool.Crop -> CropOptions(state, c)
+            Tool.Transform -> TransformOptions(state, c)
             else -> Text(
                 "${tool.label}: ${tool.availability.explanation ?: ""}",
                 style = PhoType.Label,
@@ -204,7 +209,7 @@ private fun ViewOptions(state: EditorState, c: EditorController) {
 
 /** Magnetic snapping for two-finger rotation (view, and layer when the Move tool transforms it). */
 @Composable
-private fun SnapOptions(state: EditorState, c: EditorController) {
+internal fun SnapOptions(state: EditorState, c: EditorController) {
     OptionsSep()
     OptionLabel("Rotation snap")
     val snap = state.rotationSnap
@@ -215,12 +220,12 @@ private fun SnapOptions(state: EditorState, c: EditorController) {
 }
 
 @Composable
-private fun OptionLabel(text: String) {
+internal fun OptionLabel(text: String) {
     Text(text, style = PhoType.Caption, modifier = Modifier.padding(start = 4.dp, end = 2.dp))
 }
 
 @Composable
-private fun ToggleChip(label: String, on: Boolean, onClick: () -> Unit) {
+internal fun ToggleChip(label: String, on: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(6.dp)
     Row(
         Modifier
@@ -243,7 +248,7 @@ private fun ToggleChip(label: String, on: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ValueChip(label: String, value: String, enabled: Boolean, onClick: () -> Unit) {
+internal fun ValueChip(label: String, value: String, enabled: Boolean, onClick: () -> Unit) {
     Column(
         Modifier
             .padding(horizontal = 4.dp)
@@ -257,7 +262,7 @@ private fun ValueChip(label: String, value: String, enabled: Boolean, onClick: (
 }
 
 @Composable
-private fun TextAction(label: String, enabled: Boolean = true, onClick: () -> Unit) {
+internal fun TextAction(label: String, enabled: Boolean = true, onClick: () -> Unit) {
     Box(
         Modifier
             .padding(horizontal = 2.dp)
@@ -270,6 +275,6 @@ private fun TextAction(label: String, enabled: Boolean = true, onClick: () -> Un
 }
 
 @Composable
-private fun OptionsSep() {
+internal fun OptionsSep() {
     VDivider(Modifier.padding(horizontal = 8.dp, vertical = 14.dp).fillMaxHeight())
 }

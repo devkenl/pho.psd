@@ -7,6 +7,7 @@ import app.phopsd.engine.model.Document
 import app.phopsd.engine.model.RasterLookup
 import app.phopsd.engine.raster.Pixels
 import app.phopsd.engine.render.Compositor
+import app.phopsd.engine.render.MaskDisplay
 import app.phopsd.engine.render.RenderRequest
 import app.phopsd.engine.render.Sampling
 import kotlinx.coroutines.Dispatchers
@@ -33,7 +34,20 @@ class PreviewFrame(
     val docRect: RectD,
     val document: Document,
     val nearest: Boolean,
-)
+    val maskDisplay: MaskDisplay? = null,
+    /** Bumped when [bitmap] was patched in place (a new frame object makes Compose redraw). */
+    val version: Long = 0,
+) {
+    fun patched(doc: Document = document) = PreviewFrame(bitmap, docRect, doc, nearest, maskDisplay, version + 1)
+}
+
+/** Freshly rendered pixels (straight ARGB) for the region [x], [y], [w]×[h] of a frame's bitmap. */
+class FramePatch(val frame: PreviewFrame, val x: Int, val y: Int, val w: Int, val h: Int, val pixels: IntArray) {
+    /** Must run on the main thread (the bitmap may be drawing). */
+    fun apply() {
+        if (!frame.bitmap.isRecycled) frame.bitmap.setPixels(pixels, 0, w, x, y, w, h)
+    }
+}
 
 /**
  * Two-level preview strategy (M2 foundation for M7 tiling):
@@ -48,15 +62,44 @@ class PreviewRenderer(private val compositor: Compositor = Compositor()) {
 
     private val bands = max(1, min(8, Runtime.getRuntime().availableProcessors()))
 
-    suspend fun renderBase(doc: Document, rasters: RasterLookup, maxEdge: Int): PreviewFrame {
+    suspend fun renderBase(doc: Document, rasters: RasterLookup, maxEdge: Int, maskDisplay: MaskDisplay? = null): PreviewFrame {
         val (w, h) = Compositor.fitSize(doc.width, doc.height, maxEdge)
         val rect = RectD(0.0, 0.0, doc.width.toDouble(), doc.height.toDouble())
-        val req = RenderRequest(rect, w, h, Sampling.Bilinear)
-        return PreviewFrame(render(doc, rasters, req), rect, doc, nearest = false)
+        val req = RenderRequest(rect, w, h, Sampling.Bilinear, maskDisplay = maskDisplay)
+        return PreviewFrame(render(doc, rasters, req), rect, doc, nearest = false, maskDisplay = maskDisplay)
+    }
+
+    /**
+     * Re-renders only the pixels of [frame] that cover [dirtyDoc] (live brush strokes). The
+     * sub-request uses exactly the frame's pixel grid and sampling, so patches are seamless.
+     * Returns null when the region does not overlap the frame. Call [FramePatch.apply] on the
+     * main thread.
+     */
+    fun patch(frame: PreviewFrame, doc: Document, rasters: RasterLookup, dirtyDoc: RectD): FramePatch? {
+        val bmp = frame.bitmap
+        val r = frame.docRect
+        val sx = r.width / bmp.width
+        val sy = r.height / bmp.height
+        val i0 = max(0, floor((dirtyDoc.left - r.left) / sx).toInt() - 1)
+        val j0 = max(0, floor((dirtyDoc.top - r.top) / sy).toInt() - 1)
+        val i1 = min(bmp.width, ceil((dirtyDoc.right - r.left) / sx).toInt() + 1)
+        val j1 = min(bmp.height, ceil((dirtyDoc.bottom - r.top) / sy).toInt() + 1)
+        if (i0 >= i1 || j0 >= j1) return null
+        val w = i1 - i0
+        val h = j1 - j0
+        val req = RenderRequest(
+            RectD(r.left + i0 * sx, r.top + j0 * sy, r.left + i1 * sx, r.top + j1 * sy), w, h,
+            if (frame.nearest) Sampling.Nearest else Sampling.Bilinear,
+            maskDisplay = frame.maskDisplay,
+        )
+        val out = IntArray(w * h)
+        compositor.render(doc, rasters, req, out)
+        Pixels.unpremultiplyInPlace(out)
+        return FramePatch(frame, i0, j0, w, h, out)
     }
 
     /** Returns null when the base preview is already sharp enough for this viewport. */
-    suspend fun renderDetail(doc: Document, rasters: RasterLookup, vp: Viewport, basePixelsPerDocPixel: Double): PreviewFrame? {
+    suspend fun renderDetail(doc: Document, rasters: RasterLookup, vp: Viewport, basePixelsPerDocPixel: Double, maskDisplay: MaskDisplay? = null): PreviewFrame? {
         if (vp.zoom <= basePixelsPerDocPixel * 1.15) return null
         val visible = vp.visibleDocumentRect()
         if (visible.isEmpty) return null
@@ -74,8 +117,8 @@ class PreviewRenderer(private val compositor: Compositor = Compositor()) {
         val w = max(1, outW.toInt())
         val h = max(1, outH.toInt())
         val nearest = vp.zoom >= 2.0
-        val req = RenderRequest(rect, w, h, if (nearest) Sampling.Nearest else Sampling.Bilinear)
-        return PreviewFrame(render(doc, rasters, req), rect, doc, nearest)
+        val req = RenderRequest(rect, w, h, if (nearest) Sampling.Nearest else Sampling.Bilinear, maskDisplay = maskDisplay)
+        return PreviewFrame(render(doc, rasters, req), rect, doc, nearest, maskDisplay)
     }
 
     private suspend fun render(doc: Document, rasters: RasterLookup, req: RenderRequest): Bitmap =
