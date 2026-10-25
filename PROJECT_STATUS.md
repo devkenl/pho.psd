@@ -4,7 +4,11 @@ _Last updated: 2026-10-25 · version `0.2.0-dev` · scope: Milestones 0, 1 and 2
 
 ## Read this first: what was and was not verified
 
-This iteration was built in a cloud workspace **without access to Google Maven, Maven Central, the Gradle plugin portal or the Android SDK**. That had consequences:
+**Update (2026-10-25): the project now builds in GitHub Actions.** Run [#40177654382](https://github.com/devkenl/pho.psd/actions/runs/40177654382) passed `:core:engine:test :core:editor:test` and `:app:assembleDebug` with AGP 9.4.0 / Gradle 9.6.0 / JDK 21 / Android platform 37, and produced the debug APK artifact. That was the first real Gradle build, and it needed no source changes. The only fixes needed were CI SDK setup. The app has **still not been run on a device or emulator.**
+
+CI (`.github/workflows/android.yml`) runs on every push to `main` and on pull requests. It uploads `pho.psd-debug-apk` and `test-reports` artifacts, and publishes `REPORT.txt` plus build logs to the `ci-logs/latest` branch (and to `ci-logs/<run id>` on failure).
+
+The original development environment had **no access to Google Maven, Maven Central, the Gradle plugin portal or the Android SDK**, so the following pre-CI checks were used:
 
 | Check | Result | How |
 |---|---|---|
@@ -12,11 +16,11 @@ This iteration was built in a cloud workspace **without access to Google Maven, 
 | Core unit tests | ✅ **74 / 74 pass** | JUnit 4.13.2 — same script |
 | `:app` type-check against the real AndroidX + Android APIs | ✅ pass, 1 known tooling artifact | `tools/compile-check/` generates Kotlin stubs from androidx `api/current.txt` signature files (androidx commit `53bc2d6`, 2026-10-23) and compiles the app against them plus Android API 37 `android.jar`. The only reported error comes from the stub generator: the stub `ComponentActivity` had to be made abstract. |
 | Compose compiler plugin rules | ⚠️ not checked | Stub compile runs without the plugin; composable-context rules were reviewed by hand |
-| `./gradlew assembleDebug` | ❌ **not run** | AGP/AndroidX artifacts could not be downloaded here |
+| `./gradlew assembleDebug` | ✅ **pass in GitHub Actions** | Not possible locally; CI run 40177654382 |
 | Install / run on emulator or tablet | ❌ **not done** | No SDK, emulator or device was available |
 | Screenshot comparison with `design-reference.png` | ❌ not done | Needs a running build |
 
-**Your first `./gradlew assembleDebug` is the first real Android build.** Expect, at most, small API-shape fixes; please report or paste any errors.
+Next verification gap: install the CI-built APK on a tablet or emulator.
 
 ## Build commands
 
@@ -61,7 +65,7 @@ Measured once in the 2-core dev container on a desktop JVM. These are **not devi
 No tablet measurements exist yet. Moving a layer re-composites a 1280-px preview, so on-device drag smoothness is unknown and may be well below 60 FPS (see Known issues).
 
 ## Known issues / risks
-1. **Not yet built with Gradle or run on a device** (see top). Behaviours needing device confirmation: EXIF orientation via ImageDecoder, stylus hover tooltips, pinch-rotate threshold feel, multi-window resizing, mouse right-click on tool families.
+1. **Builds in CI but not yet run on a device** (see top). Behaviours needing device confirmation: EXIF orientation via ImageDecoder, stylus hover tooltips, pinch-rotate threshold feel, multi-window resizing, mouse right-click on tool families.
 2. Moving a layer re-renders the whole preview on the CPU each frame. Expect lag on large documents until M7 (GPU backend, per-layer cached tiles).
 3. Engine tiles live on the Java heap (`largeHeap`). Very large images are downsampled on import rather than tiled to disk. Disk-backed/native tiles are M7.
 4. Preview bitmaps are released by GC, not pooled (M7 texture/bitmap pooling).
@@ -71,6 +75,6 @@ No tablet measurements exist yet. Moving a layer re-composites a 1280-px preview
 8. Process death loses the document (no saved state yet).
 
 ## Next steps (recommended order)
-1. Run `./gradlew assembleDebug` and `:core:engine:test :core:editor:test`. Fix any build issues first.
-2. Install on a tablet. Verify import (portrait JPEG with EXIF rotation, PNG with alpha, WebP), layer ops, gestures and keyboard shortcuts. Capture screenshots and compare them with `design-reference.png`.
+1. Keep CI green; fix any warnings listed in `ci-logs/latest:REPORT.txt`.
+2. Install the CI-built APK on a tablet. Verify import (portrait JPEG with EXIF rotation, PNG with alpha, WebP), layer ops, gestures and keyboard shortcuts. Capture screenshots and compare them with `design-reference.png`.
 3. **M3**: versioned `.phopsd` container (ZIP + JSON manifest + tile assets), atomic save via SAF, reopen, PNG/JPEG export through the same compositor, autosave journal, and round-trip, corruption and export pixel tests.

@@ -1,14 +1,19 @@
 # pho.psd
 
+[![Android CI](https://github.com/devkenl/pho.psd/actions/workflows/android.yml/badge.svg)](https://github.com/devkenl/pho.psd/actions/workflows/android.yml)
+
 A professional, offline image editor for **Android tablets**: layers, true alpha
 compositing, and a desktop-class workspace designed for touch, stylus, keyboard and mouse.
 
 > Status: `0.2.0-dev`, Milestones 0–2 (workspace + image import + raster layers).
-> See **PROJECT_STATUS.md** for what has and hasn't been verified, including the fact that
-> this revision has not yet been built with Gradle or run on a device.
+> Builds and passes its unit tests in GitHub Actions; not yet run on a device.
+> See **PROJECT_STATUS.md** for exactly what has and hasn't been verified.
 
 ## Build
-Requirements: Android Studio (or the command line) with Android SDK platform 37 and JDK 17+.
+Every push to `main` builds in GitHub Actions; download the debug APK from the latest
+successful run's **Artifacts** (`pho.psd-debug-apk`).
+
+To build locally you need Android Studio (or the command line) with Android SDK platform 37 and JDK 17+.
 
 ```bash
 ./gradlew assembleDebug                          # APK at app/build/outputs/apk/debug/

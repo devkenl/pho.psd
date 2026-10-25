@@ -2,11 +2,11 @@
 
 Status vocabulary: **Implemented** = code complete with automated tests where the logic is testable on the JVM · **Implemented (UI)** = UI wired to real behaviour; type-checked against the AndroidX APIs but **not yet run on a device** · **Partial** · **Planned** (milestone). The plan lives in `docs/FEATURE_MATRIX.md`; this file reports reality. The in-app *Help ▸ Feature Status* dialog mirrors it.
 
-> This build has **not** been compiled with Gradle or run on a device yet (see PROJECT_STATUS.md). Every "Implemented (UI)" row needs on-device confirmation.
+> This build compiles and passes its unit tests in GitHub Actions but has **not** been run on a device yet (see PROJECT_STATUS.md). Every "Implemented (UI)" row needs on-device confirmation.
 
 | Capability | Status | Tests / evidence | Notes |
 |---|---|---|---|
-| Gradle project, version catalog, wrapper, manifest, theme, launcher icon | Implemented | Versions verified against official release pages | First Gradle build pending |
+| Gradle project, version catalog, wrapper, manifest, theme, launcher icon | Implemented | CI build passes (GitHub Actions) | Not yet run on a device |
 | Design tokens, typography, Lucide icon set, pho.psd mark | Implemented (UI) | — | Original mark; no Adobe branding |
 | Home screen (New / Open Image / Open from Photos / Open Project) | Implemented (UI) | Controller tests | Open Project disabled (M3); no fake recents |
 | New Document dialog (presets, size, ppi, orientation, background) | Implemented | `EditingTest.specValidation`, `newDocument…` | 8-bit sRGB only |

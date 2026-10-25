@@ -76,18 +76,37 @@ jobs:
             core/*/build/test-results/
           if-no-files-found: ignore
 
-      # Build logs are also published as a git branch on failure, so they can be read
-      # from environments that cannot download Actions log archives.
-      - name: Publish failure logs to ci-logs branch
-        if: failure()
+      # Build logs and a short report are published as git branches (ci-logs/latest on
+      # every run, ci-logs/<run id> on failure) so they can be read from environments
+      # that cannot download Actions log archives or artifacts.
+      - name: Build report
+        if: always()
         shell: bash
         run: |
           mkdir -p ci-logs
           cp -r core/*/build/test-results ci-logs/ 2>/dev/null || true
+          {
+            echo "run: ${GITHUB_RUN_ID}  sha: ${GITHUB_SHA}  status-at-report: ${{ job.status }}"
+            find core -path '*/test-results/*' -name 'TEST-*.xml' -print0 2>/dev/null \
+              | xargs -0 -r grep -ho 'tests="[0-9]*" skipped="[0-9]*" failures="[0-9]*" errors="[0-9]*"' \
+              | awk -F'"' '{t+=$2; s+=$4; f+=$6; e+=$8} END {printf "unit tests: %d run, %d skipped, %d failures, %d errors\n", t, s, f, e}'
+            for a in app/build/outputs/apk/debug/*.apk; do [ -f "$a" ] && echo "apk: $(basename "$a") $(stat -c %s "$a") bytes"; done
+            echo "kotlin warnings: $(cat ci-logs/*.log 2>/dev/null | grep -c '^w: ' || true)"
+            cat ci-logs/*.log 2>/dev/null | grep '^w: ' | sed "s|$GITHUB_WORKSPACE/||" | sort -u || true
+          } > ci-logs/REPORT.txt
+          cat ci-logs/REPORT.txt
+          echo "::notice title=Build report::$(head -3 ci-logs/REPORT.txt | tr '\n' ' ')"
+
+      - name: Publish logs
+        if: always() && github.event_name != 'pull_request'
+        shell: bash
+        run: |
           cd ci-logs
           git init -q
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
           git add -A
           git commit -q -m "CI logs for run ${GITHUB_RUN_ID} (${GITHUB_SHA})"
-          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/ci-logs/${GITHUB_RUN_ID}
+          REMOTE="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git"
+          git push -q -f "$REMOTE" HEAD:refs/heads/ci-logs/latest
+          if [ "${{ job.status }}" != "success" ]; then git push -q -f "$REMOTE" HEAD:refs/heads/ci-logs/${GITHUB_RUN_ID}; fi
