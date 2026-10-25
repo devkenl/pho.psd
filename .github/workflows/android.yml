@@ -35,8 +35,14 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p ci-logs
-          { yes | sdkmanager --licenses > /dev/null || true
-            sdkmanager "platforms;android-37" "build-tools;36.0.0" "platform-tools"; } 2>&1 | tee ci-logs/01-sdk.log
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager --list 2>/dev/null | grep -E "^\s*(platforms;android-3[5-9]|build-tools;3[6-9])" | sort -u > ci-logs/00-available.txt || true
+          cat ci-logs/00-available.txt
+          # Package naming changed with minor SDK releases (e.g. android-37 vs android-37.0); pick what exists.
+          PLATFORM=$(awk '{print $1}' ci-logs/00-available.txt | grep -E "^platforms;android-37(\.0)?$" | head -1)
+          BUILD_TOOLS=$(awk '{print $1}' ci-logs/00-available.txt | grep -E "^build-tools;36\.0\.0$|^build-tools;3[6-9]\.[0-9]+\.[0-9]+$" | sort -V | tail -1)
+          echo "Installing: $PLATFORM $BUILD_TOOLS"
+          sdkmanager "$PLATFORM" "$BUILD_TOOLS" "platform-tools" 2>&1 | tr '\r' '\n' | grep -v '^\[' | tee ci-logs/01-sdk.log
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
