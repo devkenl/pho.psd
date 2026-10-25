@@ -91,7 +91,7 @@ jobs:
               | xargs -0 -r grep -ho 'tests="[0-9]*" skipped="[0-9]*" failures="[0-9]*" errors="[0-9]*"' \
               | awk -F'"' '{t+=$2; s+=$4; f+=$6; e+=$8} END {printf "unit tests: %d run, %d skipped, %d failures, %d errors\n", t, s, f, e}'
             for a in app/build/outputs/apk/debug/*.apk; do [ -f "$a" ] && echo "apk: $(basename "$a") $(stat -c %s "$a") bytes"; done
-            echo "kotlin warnings: $(cat ci-logs/*.log 2>/dev/null | grep -c '^w: ' || true)"
+            echo "kotlin warnings (tasks executed this run; cache hits do not re-emit warnings): $(cat ci-logs/*.log 2>/dev/null | grep -c "^w: " || true)"
             cat ci-logs/*.log 2>/dev/null | grep '^w: ' | sed "s|$GITHUB_WORKSPACE/||" | sort -u || true
           } > ci-logs/REPORT.txt
           cat ci-logs/REPORT.txt
